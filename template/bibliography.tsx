@@ -5,7 +5,7 @@ import {
 } from "@minitype/minitype";
 
 /**
- * {@link ReferenceRecord} を受け取り，`Cite` と `Bibliography` を返すファクトリ．
+ * {@link ReferenceRecord} を受け取り，`Cite` と `Bibliography` を返す．
  */
 export const createBibliography = (references: ReferenceRecord) => {
   const bib = innerCreateBibliography(references);

@@ -13,7 +13,9 @@ const decodeCharsetRanges = (ranges: string): Set<number> => {
     const plus = part.indexOf("+");
     const start = parseInt(plus === -1 ? part : part.slice(0, plus), 16);
     const extra = plus === -1 ? 0 : parseInt(part.slice(plus + 1), 16);
-    for (let cp = start; cp <= start + extra; cp++) set.add(cp);
+    for (let cp = start; cp <= start + extra; cp++) {
+      set.add(cp);
+    }
   }
   return set;
 };

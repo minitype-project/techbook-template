@@ -5,8 +5,9 @@ import { USES_COLOR } from "../config.js";
  * K の濃度から色を作成する．
  * USES_COLOR が false のときはグレースケール色空間で出力する．
  */
-const kToColor = (value: number) =>
-  USES_COLOR ? cmyk(0, 0, 0, value) : gray(100 - value);
+const kToColor = (value: number) => {
+  return USES_COLOR ? cmyk(0, 0, 0, value) : gray(100 - value);
+};
 
 /**
  * USES_COLOR が false のとき CMYK をグレースケール（K 5 刻み）に変換する．

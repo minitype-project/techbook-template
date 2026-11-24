@@ -76,15 +76,23 @@ import { flattenTitle } from "./utils/title.js";
 
 const fontDir = new URL("../fonts", import.meta.url).pathname;
 
-/** MDX ファイル 1 記事分の評価済みデータ． */
+/**
+ * MDX ファイル 1 記事分の評価済みデータ．
+ */
 export interface ArticleData {
   /** 記事本文の組版要素． */
   blocks: JsxElement;
   /** 記事タイトル（frontmatter の `title`）． */
   title: string;
-  /** 目次用タイトル．略時は title を flatten した title を使用． */
+  /**
+   * 目次用タイトル．
+   * @default title を flatten したタイトル
+   */
   titleToc?: string;
-  /** 扉用タイトル．省略時は title を flatten した title を使用． */
+  /**
+   * 扉用タイトル．
+   * @default title を flatten したタイトル
+   */
   titleTobira?: string;
   /** 著者名（frontmatter の `author`）． */
   author?: string;
@@ -92,13 +100,22 @@ export interface ArticleData {
   authorDetail?: string;
   /** 目次リンク用の H1 要素 ID．{@link buildBook} が付与する． */
   h1Id?: string;
-  /** 本文段落に使用する合成フォント（省略時は文書デフォルトの明朝体）． */
+  /**
+   * 本文段落に使用する合成フォント．
+   * @default 文書デフォルトのフォント．
+   */
   bodyFont?: CompositeFont;
-  /** false のとき通し番号を表示しない． */
+  /**
+   * 通し番号の表示の有無（false のとき非表示）．
+   * @default true
+   */
   numbered?: boolean;
-  /** 見出し上部の余白（mm）．省略時は 4 mm． */
+  /**
+   * 見出し上部の余白（mm）．
+   * @default 4
+   */
   topSpace?: number;
-  /** true のとき奥付として扱い，H1 タイトルを出力せず目次にも登録しない． */
+  /** 奥付として扱うかどうか（true のとき，タイトルを出力せず，目次にも登録しない）． */
   colophon?: boolean;
   /**
    * buildBook が付与する表示用通し番号（"01", "02", …）．
@@ -107,13 +124,15 @@ export interface ArticleData {
   displayNum?: string;
 }
 
-/** 複数記事をまとめたセクション． */
+/**
+ * 複数記事をまとめたセクション．
+ */
 export interface ArticleSection {
   /** セクション扉に表示するラベル． */
   label: string;
   /** セクション内の記事一覧． */
   articles: ArticleData[];
-  /** TOC より前に配置するセクションか（まえがきなど）． */
+  /** TOC より前に配置するかどうか（まえがきなど）． */
   beforeToc?: boolean;
 }
 
@@ -144,127 +163,129 @@ const minitypeOptions = {
 };
 
 /**
- * MDX コンポーネントを作成するための評価関数．
+ * MDX コンポーネントを作成する．
  */
-const createMdxComponents = (autoFormat: boolean) => ({
-  // リンク：脚注参照の番号を FOOTNOTE_MARK_OPTIONS の書式にする
-  a: ({
-    href,
-    id,
-    children,
-    "data-footnote-ref": dataFootnoteRef,
-    "data-footnote-backref": dataFootnoteBackref,
-  }: Record<string, unknown>): JsxElement => {
-    if (dataFootnoteBackref !== undefined) {
-      return null as unknown as JsxElement;
-    }
-    if (
-      dataFootnoteRef &&
-      typeof id === "string" &&
-      id.startsWith("user-content-fnref-")
-    ) {
-      return fn(
-        id.slice("user-content-fnref-".length),
-        FOOTNOTE_MARK_OPTIONS,
-      ) as unknown as JsxElement;
-    }
-    return Url({
-      href: typeof href === "string" ? href : "",
-      children: children as InlineChildren,
-    });
-  },
+const createMdxComponents = (autoFormat: boolean) => {
+  return {
+    // リンク：脚注参照の番号を FOOTNOTE_MARK_OPTIONS の書式にする
+    a: ({
+      href,
+      id,
+      children,
+      "data-footnote-ref": dataFootnoteRef,
+      "data-footnote-backref": dataFootnoteBackref,
+    }: Record<string, unknown>): JsxElement => {
+      if (dataFootnoteBackref !== undefined) {
+        return null as unknown as JsxElement;
+      }
+      if (
+        dataFootnoteRef &&
+        typeof id === "string" &&
+        id.startsWith("user-content-fnref-")
+      ) {
+        return fn(
+          id.slice("user-content-fnref-".length),
+          FOOTNOTE_MARK_OPTIONS,
+        ) as unknown as JsxElement;
+      }
+      return Url({
+        href: typeof href === "string" ? href : "",
+        children: children as InlineChildren,
+      });
+    },
 
-  // blockquote：左罫線付きの引用ブロック
-  blockquote: ({ children }: Record<string, unknown>): JsxElement => {
-    return Box({
-      children: filterWhitespace(children),
-      style: {
-        border: left(solid(0.5, colors.gray40)),
-        padding: physical(2, 5),
-        splitable: true,
-        gapRole: "blockquote",
-      },
-    });
-  },
+    // blockquote：左罫線付きの引用ブロック
+    blockquote: ({ children }: Record<string, unknown>): JsxElement => {
+      return Box({
+        children: filterWhitespace(children),
+        style: {
+          border: left(solid(0.5, colors.gray40)),
+          padding: physical(2, 5),
+          splitable: true,
+          gapRole: "blockquote",
+        },
+      });
+    },
 
-  // コードブロックに背景を適用するために，Box でラップしたブロックを返す
-  // lang に ":" を含む場合（例：ts:ファイル名.ts），コロン以降をキャプションとして扱う
-  // キャプションに "#label" を含む場合（例：ts:ファイル名.ts#code:hello），label として登録する
-  // label に "@t" / "@b" を付与すると float top / bottom になる（例：#lst:hello@t）
-  pre: ({ children }: Record<string, unknown>): JsxElement => {
-    const rawContent = isMdxCode(children)
-      ? children.content
-      : String(children ?? "");
-    const lang = isMdxCode(children) ? (children.lang ?? "") : "";
-    // @minitype/tsx が `ts:キャプション` の `:` 以降を meta に移す
-    const meta = isMdxCode(children) ? (children.meta ?? "") : "";
-    const { rest: captionRest, position } = extractPosition(meta);
-    const hashIdx = captionRest.lastIndexOf("#");
-    const caption =
-      hashIdx >= 0 ? captionRest.slice(0, hashIdx).trim() : captionRest;
-    const codeLabel =
-      hashIdx >= 0 ? captionRest.slice(hashIdx + 1) || undefined : undefined;
-    const content =
-      autoFormat && lang ? formatCode(rawContent, lang) : rawContent;
-    const code = Code({
-      children: content,
-      lang: lang || undefined,
-      label: codeLabel,
-    });
-    const codeBox = Box({
-      children: code,
-      style: {
-        splitable: true,
-        border: all(solid(0.2, colors.gray40)),
-        padding: physical(4, 5),
-        borderRadius: 1,
-        background: [fill(colors.gray5)],
-        gapRole: "code",
-        paddingOnBreak: false,
-      },
-    });
-    const result = caption
-      ? Box({
-          children: [codeBox, Caption({ children: caption })],
-          style: { gapRole: "code", splitable: true },
-        })
-      : codeBox;
-    return position ? Float({ children: result, position }) : result;
-  },
-
-  // 図（Markdown の ![]() 記法）
-  // alt に "#label" を含む場合（例：![キャプション#fig:cherry](url)），label として登録する
-  // src に "?ratio=0.5" を含む場合，ratio として使用する
-  // label に "@t" / "@b" を付与すると float top / bottom になる（例：#fig:cherry@t）
-  img: ({ src, alt }: Record<string, unknown>): JsxElement => {
-    const srcStr = typeof src === "string" ? src : "";
-    const qIdx = srcStr.indexOf("?");
-    const cleanSrc = qIdx >= 0 ? srcStr.slice(0, qIdx) : srcStr;
-    const query = qIdx >= 0 ? srcStr.slice(qIdx + 1) : "";
-    const params = new URLSearchParams(query);
-    const rawRatio = params.get("ratio");
-    const ratioValue = rawRatio ? parseFloat(rawRatio) : 1.0;
-    const altStr = typeof alt === "string" ? alt : "";
-    const { rest: altRest, position } = extractPosition(altStr);
-    const hashIdx = altRest.lastIndexOf("#");
-    const caption = hashIdx >= 0 ? altRest.slice(0, hashIdx) : altRest;
-    const figLabel =
-      hashIdx >= 0 ? altRest.slice(hashIdx + 1) || undefined : undefined;
-    const fig =
-      caption.length > 0
-        ? Figure({
-            src: cleanSrc,
-            style: { width: ratio(ratioValue), captionWidth: ratio(1.0) },
-            label: figLabel,
-            children: caption,
+    // コードブロックに背景を適用するために，Box でラップしたブロックを返す．
+    // lang に ":" を含む場合（例：ts:ファイル名.ts），コロン以降をキャプションとして扱う．
+    // キャプションに "#label" を含む場合（例：ts:ファイル名.ts#code:hello），label として登録する．
+    // label に "@t" / "@b" を付与すると float top / bottom になる（例：#lst:hello@t）
+    pre: ({ children }: Record<string, unknown>): JsxElement => {
+      const rawContent = isMdxCode(children)
+        ? children.content
+        : String(children ?? "");
+      const lang = isMdxCode(children) ? (children.lang ?? "") : "";
+      // @minitype/tsx が `ts:キャプション` の `:` 以降を meta に移す
+      const meta = isMdxCode(children) ? (children.meta ?? "") : "";
+      const { rest: captionRest, position } = extractPosition(meta);
+      const hashIdx = captionRest.lastIndexOf("#");
+      const caption =
+        hashIdx >= 0 ? captionRest.slice(0, hashIdx).trim() : captionRest;
+      const codeLabel =
+        hashIdx >= 0 ? captionRest.slice(hashIdx + 1) || undefined : undefined;
+      const content =
+        autoFormat && lang ? formatCode(rawContent, lang) : rawContent;
+      const code = Code({
+        children: content,
+        lang: lang || undefined,
+        label: codeLabel,
+      });
+      const codeBox = Box({
+        children: code,
+        style: {
+          splitable: true,
+          border: all(solid(0.2, colors.gray40)),
+          padding: physical(4, 5),
+          borderRadius: 1,
+          background: [fill(colors.gray5)],
+          gapRole: "code",
+          paddingOnBreak: false,
+        },
+      });
+      const result = caption
+        ? Box({
+            children: [codeBox, Caption({ children: caption })],
+            style: { gapRole: "code", splitable: true },
           })
-        : Image({
-            src: cleanSrc,
-            style: { width: ratio(ratioValue), align: "center" },
-          });
-    return position ? Float({ children: fig, position }) : fig;
-  },
-});
+        : codeBox;
+      return position ? Float({ children: result, position }) : result;
+    },
+
+    // 図（Markdown の ![]() 記法）
+    // alt に "#label" を含む場合（例：![キャプション#fig:cherry](url)），label として登録する．
+    // src に "?ratio=0.5" を含む場合，ratio として使用する．
+    // label に "@t" / "@b" を付与すると float top / bottom になる（例：#fig:cherry@t）．
+    img: ({ src, alt }: Record<string, unknown>): JsxElement => {
+      const srcStr = typeof src === "string" ? src : "";
+      const qIdx = srcStr.indexOf("?");
+      const cleanSrc = qIdx >= 0 ? srcStr.slice(0, qIdx) : srcStr;
+      const query = qIdx >= 0 ? srcStr.slice(qIdx + 1) : "";
+      const params = new URLSearchParams(query);
+      const rawRatio = params.get("ratio");
+      const ratioValue = rawRatio ? parseFloat(rawRatio) : 1.0;
+      const altStr = typeof alt === "string" ? alt : "";
+      const { rest: altRest, position } = extractPosition(altStr);
+      const hashIdx = altRest.lastIndexOf("#");
+      const caption = hashIdx >= 0 ? altRest.slice(0, hashIdx) : altRest;
+      const figLabel =
+        hashIdx >= 0 ? altRest.slice(hashIdx + 1) || undefined : undefined;
+      const fig =
+        caption.length > 0
+          ? Figure({
+              src: cleanSrc,
+              style: { width: ratio(ratioValue), captionWidth: ratio(1.0) },
+              label: figLabel,
+              children: caption,
+            })
+          : Image({
+              src: cleanSrc,
+              style: { width: ratio(ratioValue), align: "center" },
+            });
+      return position ? Float({ children: fig, position }) : fig;
+    },
+  };
+};
 
 /**
  * 記事を評価して MDX ブロックを返す．
@@ -275,7 +296,7 @@ export const evaluateArticle = async (mdxPath: string): Promise<MdxResult> => {
   const fm = fmMatch?.[1] ?? "";
   const autoFormat = !/^\s*auto-format\s*:\s*false\s*$/m.test(fm);
 
-  // 本文評価前に，同じ MDX パーサーで YAML の引用符や複数行文字列を解釈する．
+  // 本文評価前に，同じ MDX パーサを用いて YAML の引用符や複数行文字列を解釈
   const { frontmatter } = await evaluateMdxString(fmMatch?.[0] ?? "");
   const author =
     typeof frontmatter.author === "string" ? frontmatter.author : "";
@@ -304,8 +325,8 @@ export const evaluateArticle = async (mdxPath: string): Promise<MdxResult> => {
     if (existsSync(compPath)) {
       try {
         articleComponents = await import(/* @vite-ignore */ compPath);
-      } catch (e) {
-        console.error(`Failed to load ${compPath}:`, e);
+      } catch (error) {
+        console.error(`Failed to load ${compPath}:`, error);
       }
       break;
     }
@@ -329,7 +350,10 @@ export const evaluateArticle = async (mdxPath: string): Promise<MdxResult> => {
     preprocessQuotes,
     preprocessApostrophes,
   ];
-  const preprocessed = preprocessors.reduce((s, fn) => fn(s), content);
+  const preprocessed = preprocessors.reduce(
+    (source, preprocess) => preprocess(source),
+    content,
+  );
   return evaluateMdxString(preprocessed, {
     baseUrl: new URL(`file://${path.resolve(mdxPath)}`),
     resolveAsset: resolveArticleAsset,
@@ -548,7 +572,7 @@ const compositeArticle = ({
 
       <Nombre />
 
-      {/** 記事番号 */}
+      {/* 記事番号 */}
       {displayNum && (
         <Flow
           position="pillar"
@@ -613,9 +637,9 @@ const compositeArticle = ({
 /**
  * 奥付ページを組版する（H1 なし，目次登録なし）．
  */
-const compositeColophon = ({ blocks }: ArticleData): JsxElement => (
-  <Group>{blocks}</Group>
-);
+const compositeColophon = ({ blocks }: ArticleData): JsxElement => {
+  return <Group>{blocks}</Group>;
+};
 
 /**
  * 目次 + 複数記事をビルドする．
@@ -702,8 +726,8 @@ export const buildTobira = (
 
   const compositeSection = createTobiraRenderer(bleedMm);
   const tobiraGroups = sectionsWithIds
-    .filter((s) => !s.beforeToc && s.label)
-    .map((s) => compositeSection(s));
+    .filter((section) => !section.beforeToc && section.label)
+    .map((section) => compositeSection(section));
 
   const doc = (
     <Document

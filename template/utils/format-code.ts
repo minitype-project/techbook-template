@@ -27,10 +27,11 @@ const LANG_TO_EXT: Record<string, string> = {
   gql: "graphql",
 };
 
-const hasParseError = (diagnostics: { category: string }[]) =>
-  diagnostics.some((d) => d.category === "parse");
+const hasParseError = (diagnostics: { category: string }[]) => {
+  return diagnostics.some((diagnostic) => diagnostic.category === "parse");
+};
 
-// パースエラー時に <> </> でラップして再フォーマットし，ラッパーを剥がす．
+// パースエラー時に <> </> でラップして再フォーマットし，ラッパを剥がす．
 // Biome は JSX フラグメント内の空行を削除するため，空行をマーカーコメントで保持する．
 const BLANK_MARKER = "{/* __blank__ */}";
 const formatAsFragment = (code: string): string => {
@@ -47,7 +48,7 @@ const formatAsFragment = (code: string): string => {
   }
   return lines
     .slice(1, -1)
-    .map((l) => l.replace(/^ {2}/, ""))
+    .map((line) => line.replace(/^ {2}/, ""))
     .join("\n")
     .replace(/\n*\s*\{\/\* __blank__ \*\/\}\s*\n*/g, "\n\n");
 };
@@ -65,7 +66,9 @@ export const formatCode = (code: string, lang: string): string => {
       filePath: `file.${ext}`,
     });
     if (hasParseError(result.diagnostics)) {
-      if (ext === "tsx" || ext === "jsx") return formatAsFragment(code);
+      if (ext === "tsx" || ext === "jsx") {
+        return formatAsFragment(code);
+      }
       return code;
     }
     return result.content.trimEnd();

@@ -3,16 +3,16 @@
  * #label@t，@t#label 両方のパターンに対応する．
  */
 export const extractPosition = (
-  s: string,
+  text: string,
 ): { rest: string; position?: "top" | "bottom" } => {
-  const m = s.match(/@(t|b)/);
-  if (!m || m.index === undefined) {
-    return { rest: s };
+  const match = text.match(/@(t|b)/);
+  if (!match || match.index === undefined) {
+    return { rest: text };
   }
-  const i = m.index;
+  const index = match.index;
   return {
-    rest: s.slice(0, i) + s.slice(i + 2),
-    position: m[1] === "t" ? "top" : "bottom",
+    rest: text.slice(0, index) + text.slice(index + 2),
+    position: match[1] === "t" ? "top" : "bottom",
   };
 };
 
@@ -36,19 +36,19 @@ const transformOutsideCode = (
     /^[ \t]*(`{3,})[^\n]*\n[\s\S]*?^[ \t]*\1`*[ \t]*$|^(?:import|export)\b[^\n]*(?:\n(?!\n)[^\n]*)*|^[ \t]*\[(?!\^)[^\]\n]+\]:[^\n]*/gm;
   let result = "";
   let lastIndex = 0;
-  for (const m of body.matchAll(skipRegex)) {
-    const start = m.index ?? 0;
+  for (const match of body.matchAll(skipRegex)) {
+    const start = match.index ?? 0;
     result += transform(body.slice(lastIndex, start));
-    result += m[0];
-    lastIndex = start + m[0].length;
+    result += match[0];
+    lastIndex = start + match[0].length;
   }
   result += transform(body.slice(lastIndex));
 
   return fmPart + result;
 };
 
-const escapeJsxString = (s: string): string => {
-  return s.replace(/\\/g, "\\\\").replace(/`/g, "\\`").replace(/\$/g, "\\$");
+const escapeJsxString = (text: string): string => {
+  return text.replace(/\\/g, "\\\\").replace(/`/g, "\\`").replace(/\$/g, "\\$");
 };
 
 /**
@@ -121,7 +121,10 @@ export const preprocessAutoUrls = (source: string): string => {
       spans.push(match);
       return `${SENTINEL}${spans.length - 1}${SENTINEL}`;
     });
-    const transformed = protectedText.replace(URL_REGEX, (m) => `[${m}](${m})`);
+    const transformed = protectedText.replace(
+      URL_REGEX,
+      (url) => `[${url}](${url})`,
+    );
     return transformed.replace(PLACEHOLDER_REGEX, (_, i) => spans[Number(i)]);
   };
 
@@ -218,7 +221,7 @@ export const preprocessApostrophes = (source: string): string => {
 export const preprocessParentheses = (source: string): string => {
   const PRESERVE_RE = /(`+[^`\n]*`+|<[^>]+>|\[[^\]\n]*\]\([^)\n]*\))/g;
   const transform = (text: string): string => {
-    // インラインコード，JSX/HTML タグ，autolink，Markdown リンクをプレースホルダーに
+    // インラインコード，JSX/HTML タグ，autolink，Markdown リンクをプレースホルダに
     // 置換してから変換することで，括弧がタグをまたぐ場合にも対応する．
     const preserved: string[] = [];
     const withPlaceholders = text.replace(PRESERVE_RE, (match) => {

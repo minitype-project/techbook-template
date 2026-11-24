@@ -216,7 +216,7 @@ export const AuthorProfile = ({
 };
 
 /**
- * レベル 5 の見出し．
+ * レベル 5 の見出しを生成する．
  */
 export const H5 = ({ children }: { children?: JsxElement }): JsxElement => {
   return (
@@ -227,7 +227,7 @@ export const H5 = ({ children }: { children?: JsxElement }): JsxElement => {
 };
 
 /**
- * GitHub リンク
+ * GitHub リポジトリへのリンクを生成する．
  */
 export const GitHub = ({
   org,

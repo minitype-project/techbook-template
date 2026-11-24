@@ -20,7 +20,7 @@ import { boldFont, codeFont, serifFont } from "./fonts.js";
 // ------
 
 /**
- * ノドを水平方向の合計余白の何割にするか（USES_ASYMMETRIC_MARGINS が true のときのみ有効）．
+ * 水平方向の合計余白に対するノドの割合（USES_ASYMMETRIC_MARGINS が true のときのみ有効）．
  */
 const NODO_RATIO = 0.6;
 
