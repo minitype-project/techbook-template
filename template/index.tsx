@@ -12,7 +12,6 @@ import {
   footnoteTransformer,
   fr,
   headingTransformer,
-  type InlineOrExtender,
   left,
   physical,
   Q,
@@ -21,8 +20,6 @@ import {
   showOnHeading,
   solid,
   TEXT_SPACE_HEADTAIL_HALF,
-  url,
-  wbr,
 } from "@minitype/minitype";
 import {
   Box,
@@ -36,15 +33,16 @@ import {
   Flexbox,
   Float,
   Flow,
+  filterWhitespace,
   Group,
   H1,
   Image,
   type InlineChildren,
+  isMdxCode,
   type JsxElement,
   Kern,
   type MdxResult,
   minitypeJSX,
-  Ol1,
   P,
   ResetLabel,
   Section,
@@ -67,12 +65,10 @@ import { Toc } from "./toc.js";
 import { formatCode } from "./utils/format-code.js";
 import { Nombre } from "./utils/nombre.js";
 import {
-  CODE_FENCE_SPACE_SENTINEL,
   extractPosition,
   preprocessApostrophes,
   preprocessAutoUrls,
   preprocessCaption,
-  preprocessCodeFenceInfo,
   preprocessParentheses,
   preprocessQuotes,
 } from "./utils/preprocess.js";
@@ -126,51 +122,6 @@ export interface ArticleSection {
 // ------
 
 /**
- * `pre` コンポーネントの `children` が mdxCode オブジェクトかどうかを判定する．
- * `@minitype/tsx` 内部の `mdxCode` ハンドラが返す形式に対応する．
- */
-const isMdxCode = (
-  v: unknown,
-): v is { _type: "mdxCode"; content: string; lang?: string; meta?: string } => {
-  return (
-    typeof v === "object" &&
-    v !== null &&
-    (v as { _type?: unknown })._type === "mdxCode"
-  );
-};
-
-// ハイフンの直後・スラッシュの直後に wbr を挿入して改行可能にする
-const buildUrlBody = (href: string): InlineOrExtender[] => {
-  const segments: string[] = [];
-  let start = 0;
-  for (let i = 0; i < href.length; i++) {
-    const ch = href[i];
-    if ((ch === "-" || ch === "/") && i + 1 < href.length) {
-      // スラッシュが連続する場合（例：://）は最初のスラッシュでは区切らない
-      if (ch === "/" && href[i + 1] === "/") {
-        continue;
-      }
-      segments.push(href.slice(start, i + 1));
-      start = i + 1;
-    }
-  }
-  if (start < href.length) {
-    segments.push(href.slice(start));
-  }
-  if (segments.length <= 1) {
-    return [href];
-  }
-  const body: InlineOrExtender[] = [];
-  for (let i = 0; i < segments.length; i++) {
-    if (i > 0) {
-      body.push(wbr());
-    }
-    body.push(segments[i]);
-  }
-  return body;
-};
-
-/**
  * 脚注番号の書式（本文中の参照・脚注欄の両方）．数字だけだと見づらいため「*1」の形にする．
  * 全角の「＊」は上付きにすると数字との間が空きすぎるため半角を用いる．
  */
@@ -194,7 +145,7 @@ const minitypeOptions = {
  * MDX コンポーネントを作成するための評価関数．
  */
 const createMdxComponents = (autoFormat: boolean) => ({
-  // リンク：表示テキストが URL そのものの場合，スラッシュ前・ハイフン後で改行可能にする
+  // リンク：脚注参照の番号を FOOTNOTE_MARK_OPTIONS の書式にする
   a: ({
     href,
     id,
@@ -215,27 +166,16 @@ const createMdxComponents = (autoFormat: boolean) => ({
         FOOTNOTE_MARK_OPTIONS,
       ) as unknown as JsxElement;
     }
-    const hrefStr = typeof href === "string" ? href : "";
-    const childStr = typeof children === "string" ? children : null;
-    if (
-      childStr !== null &&
-      childStr === hrefStr &&
-      /^https?:\/\//.test(hrefStr)
-    ) {
-      return url(hrefStr, buildUrlBody(hrefStr)) as unknown as JsxElement;
-    }
-    return Url({ href: hrefStr, children: children as InlineChildren });
+    return Url({
+      href: typeof href === "string" ? href : "",
+      children: children as InlineChildren,
+    });
   },
 
   // blockquote：左罫線付きの引用ブロック
   blockquote: ({ children }: Record<string, unknown>): JsxElement => {
-    const filtered = Array.isArray(children)
-      ? (children as unknown[]).filter(
-          (c) => !(typeof c === "string" && /^\s*$/.test(c)),
-        )
-      : children;
     return Box({
-      children: filtered as JsxElement,
+      children: filterWhitespace(children),
       style: {
         border: left(solid(0.5, colors.gray40)),
         padding: physical(2, 5),
@@ -253,21 +193,13 @@ const createMdxComponents = (autoFormat: boolean) => ({
     const rawContent = isMdxCode(children)
       ? children.content
       : String(children ?? "");
-    const rawLang = isMdxCode(children) ? (children.lang ?? "") : "";
+    const lang = isMdxCode(children) ? (children.lang ?? "") : "";
+    // @minitype/tsx が `ts:キャプション` の `:` 以降を meta に移す
     const meta = isMdxCode(children) ? (children.meta ?? "") : "";
-    const colonIdx = rawLang.indexOf(":");
-    const lang = colonIdx >= 0 ? rawLang.slice(0, colonIdx) : rawLang;
-    const langCaption = colonIdx >= 0 ? rawLang.slice(colonIdx + 1) : "";
-    const rawCaption = meta ? `${langCaption} ${meta}` : langCaption;
-    const { rest: captionRest, position } = extractPosition(rawCaption);
+    const { rest: captionRest, position } = extractPosition(meta);
     const hashIdx = captionRest.lastIndexOf("#");
-    // preprocessCodeFenceInfo が info 文字列中の ASCII スペースをセンチネルに置換しているため，元の半角スペースに戻す．
-    const decodeSentinel = (s: string) =>
-      s.replaceAll(CODE_FENCE_SPACE_SENTINEL, " ");
     const caption =
-      hashIdx >= 0
-        ? decodeSentinel(captionRest.slice(0, hashIdx).trim())
-        : decodeSentinel(captionRest);
+      hashIdx >= 0 ? captionRest.slice(0, hashIdx).trim() : captionRest;
     const codeLabel =
       hashIdx >= 0 ? captionRest.slice(hashIdx + 1) || undefined : undefined;
     const content =
@@ -330,48 +262,6 @@ const createMdxComponents = (autoFormat: boolean) => ({
           });
     return position ? Float({ children: fig, position }) : fig;
   },
-
-  // 番号付きリスト（ol）のインデントを調整
-  ol: ({ children }: Record<string, unknown>): JsxElement => {
-    const indentEm = 1.5;
-    const olStyle = {
-      indent: em(indentEm),
-      firstIndent: em(-indentEm),
-    };
-    const items = (
-      Array.isArray(children) ? (children as unknown[]) : [children]
-    ).filter((c) => !(typeof c === "string" && /^\s*$/.test(c)));
-    const footnotes = items.filter(
-      (item) =>
-        typeof item === "object" &&
-        item !== null &&
-        "type" in item &&
-        (item as { type: unknown }).type === "footnote",
-    );
-    const listItems = items.flatMap((item) => {
-      if (footnotes.includes(item)) {
-        return [];
-      }
-      if (
-        typeof item !== "object" ||
-        item === null ||
-        !("_type" in item) ||
-        (item as { _type: unknown })._type !== "mdxLi"
-      ) {
-        return [item as JsxElement];
-      }
-      return [
-        Ol1({
-          children: (item as unknown as { children: unknown })
-            .children as JsxElement,
-          style: olStyle,
-        }),
-      ];
-    });
-    return listItems.length > 0
-      ? ({ _type: "listBlock", items: listItems } as unknown as JsxElement)
-      : (footnotes as unknown as JsxElement);
-  },
 });
 
 /**
@@ -422,7 +312,6 @@ export const evaluateArticle = async (mdxPath: string): Promise<MdxResult> => {
     });
 
   const preprocessors = [
-    preprocessCodeFenceInfo,
     preprocessCaption,
     preprocessAutoUrls,
     preprocessParentheses,

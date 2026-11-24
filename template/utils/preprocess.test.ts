@@ -1,19 +1,15 @@
 import assert from "node:assert/strict";
 import { describe, test } from "vitest";
 import {
-  CODE_FENCE_SPACE_SENTINEL,
   extractPosition,
   preprocessApostrophes,
   preprocessAutoUrls,
   preprocessCaption,
-  preprocessCodeFenceInfo,
   preprocessParentheses,
   preprocessQuotes,
 } from "./preprocess.js";
 
 describe("各種 preprocess", () => {
-  // preprocessCodeFenceInfo はコードフェンス自体を処理対象とし，
-  // transformOutsideCode を経由しないため含めない．
   const preprocesses = [
     preprocessApostrophes,
     preprocessAutoUrls,
@@ -194,30 +190,6 @@ describe("preprocessCaption", () => {
     ]) {
       assert.equal(preprocessCaption(source), source);
     }
-  });
-});
-
-describe("preprocessCodeFenceInfo", () => {
-  test("info 文字列にキャプションを含むコードフェンスのみ空白を置換する", () => {
-    const S = CODE_FENCE_SPACE_SENTINEL;
-    assert.equal(
-      preprocessCodeFenceInfo("```ts:キャプション 複数行#lst:foo\na b\n```"),
-      `\`\`\`ts:キャプション${S}複数行#lst:foo\na b\n\`\`\``,
-    );
-    // キャプション（`:`）を含まない場合や空白を含まない場合はそのまま．
-    for (const source of ["```ts title\na b\n```", "```ts:caption\na b\n```"]) {
-      assert.equal(preprocessCodeFenceInfo(source), source);
-    }
-    // 閉じフェンスの後の次のフェンスも開始フェンスとして扱う．
-    assert.equal(
-      preprocessCodeFenceInfo("```\n```\n```ts:a b\n```"),
-      `\`\`\`\n\`\`\`\n\`\`\`ts:a${S}b\n\`\`\``,
-    );
-    // 入れ子のフェンスは外側のフェンスの中身として扱い，変換しない．
-    assert.equal(
-      preprocessCodeFenceInfo("````md\n```ts:a b\n```\n````\n```ts:c d\n```"),
-      `\`\`\`\`md\n\`\`\`ts:a b\n\`\`\`\n\`\`\`\`\n\`\`\`ts:c${S}d\n\`\`\``,
-    );
   });
 });
 

@@ -29,7 +29,7 @@
     "build:tobira": "BUILD_TOBIRA=1 tsx scripts/build.ts",
     "build:tobira-padding": "BUILD_TOBIRA_PADDING=1 tsx scripts/build.ts",
     "sample": "tsx scripts/generate-sample.ts",
-    "diff-pdf": "tsx scripts/diff-pdf.ts",
+    "diff": "tsx scripts/diff-pdf.ts",
     "format": "biome check --write",
     "test": "vitest run",
     "prepare": "husky"

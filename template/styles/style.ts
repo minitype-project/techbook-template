@@ -154,6 +154,16 @@ const blockStyle: BlockStyleRecord = {
     indent: em(6),
     firstIndent: em(-1),
   },
+  ol1: {
+    indent: em(1.5),
+    firstIndent: em(-1.5),
+  },
+  ol2: {
+    indent: em(3),
+  },
+  ol3: {
+    indent: em(4.5),
+  },
   table: {
     cellPadding: physical(2, 3),
     background: (rowIndex, _columnIndex) =>

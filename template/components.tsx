@@ -17,6 +17,7 @@ import {
   Command,
   Flexbox,
   Float,
+  filterWhitespace,
   Image,
   InlineGraphic,
   type JsxElement,
@@ -128,16 +129,12 @@ export const FigureTable = ({
   label?: string;
   float?: "top" | "bottom";
 }): JsxElement => {
-  const filtered = Array.isArray(children)
-    ? (children as unknown[]).filter(
-        (c) => !(typeof c === "string" && /^\s*$/.test(c)),
-      )
-    : children;
+  const filtered = filterWhitespace(children);
   if (!caption) {
-    return (filtered ?? null) as JsxElement;
+    return filtered ?? null;
   }
   const box = Box({
-    children: [Caption({ children: caption }), filtered as JsxElement],
+    children: [Caption({ children: caption }), filtered],
     style: { gapRole: "table", splitable: false },
     label,
   });

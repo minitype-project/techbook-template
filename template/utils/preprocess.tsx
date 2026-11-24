@@ -78,53 +78,16 @@ export const preprocessCaption = (source: string): string => {
   return transformOutsideCode(source, transform);
 };
 
-/**
- * コードフェンスの info 文字列（例：```ts:キャプション 複数行#lst:foo）に含まれる
- * 半角スペースを {@link CODE_FENCE_SPACE_SENTINEL} に置換する．
- *
- * MDX は info 文字列をパースして `lang` と `meta` に分けるが，HTML `class` 属性に
- * 渡された際に ASCII スペースでトークン分割されるため，`#lst:foo` のようなラベル
- * 部分が失われてしまう．スペースを ASCII でない非表示文字に置換することで分割を
- * 回避し，`pre` ハンドラ側で元の半角スペースに戻してキャプションとして使用する．
- */
-export const CODE_FENCE_SPACE_SENTINEL = "\u001f";
-
-export const preprocessCodeFenceInfo = (source: string): string => {
-  const lines = source.split("\n");
-  // 開いているフェンスのバッククォート数．フェンス外では 0．
-  let fenceLength = 0;
-  const result: string[] = [];
-  for (const line of lines) {
-    const m = line.match(/^([ \t]*)(`{3,})(.*)$/);
-    if (!m) {
-      result.push(line);
-      continue;
-    }
-    if (fenceLength > 0) {
-      // 開始と同じ長さ以上のバッククォートのみで構成される行を閉じフェンスとみなす．
-      // それ以外（入れ子のフェンスなど）はコードブロックの中身として扱う．
-      if (m[2].length >= fenceLength && m[3].trim() === "") {
-        fenceLength = 0;
-      }
-      result.push(line);
-      continue;
-    }
-    fenceLength = m[2].length;
-    const [, indent, fence, info] = m;
-    if (info.includes(":") && / /.test(info)) {
-      result.push(
-        `${indent}${fence}${info.replace(/ /g, CODE_FENCE_SPACE_SENTINEL)}`,
-      );
-    } else {
-      result.push(line);
-    }
-  }
-  return result.join("\n");
-};
+// インラインコード等を一時的に退避する際のプレースホルダ区切り．
+// 通常の Markdown 本文には現れない NUL 文字を用いる．
+const SENTINEL = "\u0000";
+const PLACEHOLDER_REGEX = new RegExp(`${SENTINEL}(\\d+)${SENTINEL}`, "g");
 
 /**
  * 生の URL を `[URL](URL)` 形式の Markdown リンクに変換する．
- * remark-gfm の autolink では，直後に続く `）` や漢字も URL の一部として取り込まれてしまう．
+ * remark-gfm の autolink は空白までを URL として取り込むため，直後に和文やインラインコードが続くと，
+ * それらも URL の一部として解釈されてしまう．@minitype/tsx は URL の終端を和文の手前に補正するが，
+ * URL に取り込まれた後続のインラインコードは，コードではなく文字列として戻される．
  * これを防ぐため，以下の規則に従って URL を `[URL](URL)` で明示的に囲う．
  * この際，MDX では `<URL>` 形式の autolink は JSX タグとして解釈されるため，使用しない．
  *
@@ -144,10 +107,6 @@ export const preprocessCodeFenceInfo = (source: string): string => {
  * - CJK 文字（ひらがな，カタカナ，漢字，約物）
  * - 属性値のクォート．
  */
-// インラインコードを一時的に退避する際のプレースホルダ区切り．
-// 通常の Markdown 本文には現れない NUL 文字を用いる．
-const SENTINEL = "\u0000";
-const PLACEHOLDER_REGEX = new RegExp(`${SENTINEL}(\\d+)${SENTINEL}`, "g");
 
 export const preprocessAutoUrls = (source: string): string => {
   const URL_REGEX =
