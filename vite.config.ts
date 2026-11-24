@@ -4,7 +4,7 @@ import { defineConfig } from "vite";
 export default defineConfig({
   plugins: [
     minitype({
-      entry: "scripts/build-article.ts",
+      entry: "scripts/build.ts",
       watchExtensions: ["mdx", "ts", "tsx"],
     }),
   ],

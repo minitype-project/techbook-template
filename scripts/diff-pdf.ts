@@ -10,7 +10,12 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
-import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
+import {
+  getDocument,
+  type PDFDocumentProxy,
+} from "pdfjs-dist/legacy/build/pdf.mjs";
+import { distDir } from "./paths.js";
+import { resolveOutlinePageIndex } from "./pdf.js";
 
 /*
  * 2 つの PDF の差分を検査する．
@@ -26,7 +31,6 @@ import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
  * 環境変数 DIFF_FUZZ で許容範囲を変更できる（DIFF_FUZZ=0 で厳密に比較）．
  */
 
-const distDir = new URL("../dist/", import.meta.url).pathname;
 /**
  * ラスタライズの解像度．
  */
@@ -60,18 +64,13 @@ type PdfInfo = {
 /**
  * アウトラインを「インデント + タイトル -> ページ番号」の文字列として平坦化する．
  */
-const flattenOutline = async (
-  doc: Awaited<ReturnType<typeof getDocument>["promise"]>,
-): Promise<string[]> => {
+const flattenOutline = async (doc: PDFDocumentProxy): Promise<string[]> => {
   const lines: string[] = [];
   type Item = NonNullable<Awaited<ReturnType<typeof doc.getOutline>>>[number];
   const visit = async (items: Item[], depth: number) => {
     for (const item of items) {
-      const dest =
-        typeof item.dest === "string"
-          ? await doc.getDestination(item.dest)
-          : item.dest;
-      const page = dest ? (await doc.getPageIndex(dest[0])) + 1 : "?";
+      const pageIndex = await resolveOutlinePageIndex(doc, item);
+      const page = pageIndex === undefined ? "?" : pageIndex + 1;
       lines.push(`${"  ".repeat(depth)}${item.title} -> p.${page}`);
       await visit(item.items, depth + 1);
     }
@@ -171,35 +170,32 @@ const comparePage = (
   newImage: string,
   diffPath: string,
 ): number => {
+  const highlighted = `${diffPath}.tmp.png`;
   try {
     // magick compare は差分があると終了コード 1 を返し，計測値を stderr に出す
     execFileSync(
       "magick",
-      ["compare", ...fuzzArgs, "-metric", "AE", oldImage, newImage, "null:"],
-      {
-        stdio: "pipe",
-      },
+      [
+        "compare",
+        ...fuzzArgs,
+        "-metric",
+        "AE",
+        oldImage,
+        newImage,
+        highlighted,
+      ],
+      { stdio: "pipe" },
     );
+    rmSync(highlighted);
     return 0;
   } catch (error) {
     const result = error as { status: number; stderr: Buffer };
     if (result.status !== 1) {
+      rmSync(highlighted, { force: true });
       throw error;
     }
     const pixels = Number.parseFloat(result.stderr.toString());
     // 前後比較しやすいよう，旧・差分・新を横に並べた画像を出力する
-    const highlighted = `${diffPath}.tmp.png`;
-    try {
-      execFileSync(
-        "magick",
-        ["compare", ...fuzzArgs, oldImage, newImage, highlighted],
-        {
-          stdio: "pipe",
-        },
-      );
-    } catch {
-      // 差分ありの場合も終了コード 1 になる
-    }
     execFileSync("magick", [
       oldImage,
       highlighted,
@@ -210,6 +206,15 @@ const comparePage = (
     rmSync(highlighted);
     return pixels;
   }
+};
+
+/**
+ * ページ番号の一覧を「p.1, p.3」の形式に整形する．
+ * @param pages ページ番号の一覧．
+ */
+const formatPages = (pages: Iterable<number>): string => {
+  const labels = [...pages].map((page) => `p.${page}`);
+  return labels.length > 0 ? labels.join(", ") : "なし";
 };
 
 const escapeHtml = (text: string): string => {
@@ -394,9 +399,9 @@ const main = async () => {
     const oldImages = rasterize(oldPath, join(workDir, "old"));
     const newImages = rasterize(newPath, join(workDir, "new"));
     const common = Math.min(oldImages.length, newImages.length);
+    mkdirSync(outDir, { recursive: true });
     for (let i = 0; i < common; i++) {
       const page = String(i + 1).padStart(3, "0");
-      mkdirSync(outDir, { recursive: true });
       const pixels = comparePage(
         oldImages[i],
         newImages[i],
@@ -418,7 +423,6 @@ const main = async () => {
   }
 
   if (visualDiffs.size > 0 || summary.length > 0) {
-    mkdirSync(outDir, { recursive: true });
     const reportPath = join(outDir, "index.html");
     writeFileSync(
       reportPath,
@@ -430,12 +434,8 @@ const main = async () => {
   }
 
   console.log("\n## まとめ");
-  console.log(
-    `テキスト差分: ${textDiffs.size > 0 ? [...textDiffs.keys()].map((page) => `p.${page}`).join(", ") : "なし"}`,
-  );
-  console.log(
-    `見た目の差分: ${visualDiffs.size > 0 ? [...visualDiffs.keys()].map((page) => `p.${page}`).join(", ") : "なし"}`,
-  );
+  console.log(`テキストの差分: ${formatPages(textDiffs.keys())}`);
+  console.log(`見た目の差分: ${formatPages(visualDiffs.keys())}`);
   process.exitCode = hasDiff ? 1 : 0;
 };
 

@@ -125,13 +125,19 @@ export interface ArticleData {
 }
 
 /**
+ * 本文を含まない記事データ．
+ * 扉など本文不要な場合に使用する．
+ */
+export type ArticleMeta = Omit<ArticleData, "blocks">;
+
+/**
  * 複数記事をまとめたセクション．
  */
-export interface ArticleSection {
+export interface ArticleSection<Article extends ArticleMeta = ArticleData> {
   /** セクション扉に表示するラベル． */
   label: string;
   /** セクション内の記事一覧． */
-  articles: ArticleData[];
+  articles: Article[];
   /** TOC より前に配置するかどうか（まえがきなど）． */
   beforeToc?: boolean;
 }
@@ -706,7 +712,7 @@ export const buildBook = (
  * 扉ページのみをビルドする（MDX 評価なし）．
  */
 export const buildTobira = (
-  sections: ArticleSection[],
+  sections: ArticleSection<ArticleMeta>[],
   bleedMm = 0,
 ): ReturnType<typeof minitypeJSX> => {
   let articleIndex = 0;

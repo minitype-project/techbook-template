@@ -2,6 +2,7 @@ import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { PDFDocument } from "pdf-lib";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { sectionLabels } from "../template/config.js";
+import { extractPages, resolveOutlinePageIndex } from "./pdf.js";
 
 // data/ebook-v<N>.pdf のうち最新版から，
 // 表紙・目次・各記事の 1 ページ目・裏表紙を抜粋して data/ebook-v<N>-sample.pdf を出力する．
@@ -48,17 +49,11 @@ const loadOutline = async (
   const outline = (await doc.getOutline()) ?? [];
   const entries: { title: string; pageIndex: number }[] = [];
   for (const item of outline) {
-    const dest =
-      typeof item.dest === "string"
-        ? await doc.getDestination(item.dest)
-        : item.dest;
-    if (!dest) {
+    const pageIndex = await resolveOutlinePageIndex(doc, item);
+    if (pageIndex === undefined) {
       continue;
     }
-    entries.push({
-      title: item.title,
-      pageIndex: await doc.getPageIndex(dest[0]),
-    });
+    entries.push({ title: item.title, pageIndex });
   }
   await doc.destroy();
   return entries.sort((a, b) => a.pageIndex - b.pageIndex);
@@ -95,16 +90,12 @@ const main = async () => {
     { label: "裏表紙", pageIndex: pageCount - 1 },
   ];
 
-  const outDoc = await PDFDocument.create();
-  outDoc.setTitle(srcDoc.getTitle() ?? "");
-  outDoc.setAuthor(srcDoc.getAuthor() ?? "");
-  const copiedPages = await outDoc.copyPages(
+  const outDoc = await extractPages(
     srcDoc,
     pages.map((page) => page.pageIndex),
   );
-  for (const page of copiedPages) {
-    outDoc.addPage(page);
-  }
+  outDoc.setTitle(srcDoc.getTitle() ?? "");
+  outDoc.setAuthor(srcDoc.getAuthor() ?? "");
 
   mkdirSync(dataDir, { recursive: true });
   const fileName = `ebook-v${version}-sample.pdf`;
