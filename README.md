@@ -1,6 +1,6 @@
 # techbook-template
 
-TypeScript ライブラリとして提供される組版エンジン [minitype](https://typeset.jp/) を用いて，Markdown + TSX（MDX）を用いて技術同人誌を執筆するためのテンプレートです．
+TypeScript ライブラリとして提供される組版エンジン [minitype](https://typeset.jp/) を用いて，Markdown + TSX（MDX）を用いて技術同人誌（B5 判，横組み）を執筆するためのテンプレートです．
 
 本テンプレートは，以下の特徴を有します．
 
@@ -21,16 +21,38 @@ TypeScript ライブラリとして提供される組版エンジン [minitype](
 
 記法やテンプレートの仕組みについては，サンプル記事（[articles/sample/index.mdx](./articles/sample/index.mdx)，コンパイルされた PDF：[dist/sample.pdf](./dist/sample.pdf)）で解説しています．
 
-## セットアップ
+## クイックスタート
 
-Node.js がインストールされている環境にて，依存パッケージをインストールしてください．
+Node.js がインストールされている環境で，以下のコマンドを実行してください．
 
 ```bash
+# テンプレートの取得
+git clone https://github.com/minitype-project/techbook-template.git
+cd techbook-template
+
 # 依存関係のインストール
 npm i
+
+# サンプル記事のプレビュー
+npm run dev sample
 ```
 
-加えて，モノクロ出力時の画像のグレースケール変換（`USES_COLOR = false`）および PDF の差分検査（`npm run diff`）には，外部ツールのインストールが必要です．
+表示された URL（<http://localhost:5173>）をブラウザで開くと，サンプル記事をプレビューできます．
+
+自分の記事を執筆するには，`articles/sample/` を `articles/<dirname>/` にコピーして，`index.mdx` を編集してください（詳細は[記事の執筆](#記事の執筆)を参照）．
+
+```bash
+# 記事を PDF 文書に出力
+npm run build <dirname>
+# 書籍全体を PDF 文書に出力
+npm run build
+```
+
+書籍全体の設定や記事の掲載順は `template/config.ts` で変更できます（詳細は[設定](#設定)を参照）．
+
+## 外部ツールのインストール
+
+モノクロ出力時の画像のグレースケール変換（`USES_COLOR = false`）および PDF の差分検査（`npm run diff`）には，外部ツールのインストールが必要です．
 
 ```bash
 # 外部ツールのインストール
@@ -68,6 +90,28 @@ npm run build:tobira-padding
 
 `npm run build`（目次 + 全記事）に記事を含めるには，`template/config.ts` の `articleOrder` に記事のディレクトリ名を追加してください．
 
+## 記事の執筆
+
+- `articles/` 以下にディレクトリを作成して，その中の `index.mdx` に記事を執筆してください．
+  - ブランチを切って，PR として提出されることを推奨します．
+- サンプル記事（`articles/sample`）を書き方の参考にしてください．
+- mdx の先頭に YAML フロントマターとして以下の内容を記述してください．各項目の詳細はサンプル記事を参照してください．
+
+  ```yaml
+  ---
+  title: 本文の\n記事タイトル（必須）
+  title-toc: 目次の\n記事タイトル（任意）
+  title-tobira: 扉の\n記事タイトル（任意）
+  author: 著者名（必須）
+  author-detail: 著者詳細．メールアドレス，所属，SNS アカウント等（任意）
+  author-image: articles/<dirname>/profile.jpg # 著者紹介欄の画像．JPEG または PNG（任意）
+  auto-format: true # コードブロックの自動フォーマットを有効化するかどうか（任意，既定値 true）
+  ---
+  ```
+
+- 記事末尾には著者紹介として，著者近影 + 自己紹介を含めることができます．
+- チェックリストとして [checklist.md](./checklist.md) を添付しています．よろしければ参考にしてください．
+
 ## 設定
 
 `template/config.ts` で以下の項目を設定できます．
@@ -93,28 +137,6 @@ npm run build:tobira-padding
 
 これらのフォントを用意できない場合，`USES_OSS_FONTS` を `true` にすることで，オープンソースフォントを利用して記事をコンパイルできます．
 オープンソースフォントはリポジトリに同梱されているため，追加でのインストールは不要です．
-
-## 記事の執筆
-
-- `articles/` 以下にディレクトリを作成して，その中の `index.mdx` に記事を執筆してください．
-  - ブランチを切って，PR として提出されることを推奨します．
-- サンプル記事（`articles/sample`）を書き方の参考にしてください．
-- mdx の先頭に YAML フロントマターとして以下の内容を記述してください．各項目の詳細はサンプル記事を参照してください．
-
-  ```yaml
-  ---
-  title: 本文の\n記事タイトル（必須）
-  title-toc: 目次の\n記事タイトル（任意）
-  title-tobira: 扉の\n記事タイトル（任意）
-  author: 著者名（必須）
-  author-detail: 著者詳細．メールアドレス，所属，SNS アカウント等（任意）
-  author-image: articles/<dirname>/profile.jpg # 著者紹介欄の画像．JPEG または PNG（任意）
-  auto-format: true # コードブロックの自動フォーマットを有効化するかどうか（任意，既定値 true）
-  ---
-  ```
-
-- 記事末尾には著者紹介として，著者近影 + 自己紹介を含めることができます．
-- チェックリストとして [checklist.md](./checklist.md) を添付しています．よろしければ参考にしてください．
 
 ## 入稿用データ作成，データチェック
 
