@@ -1,6 +1,6 @@
 import {
   all,
-  type CMYK,
+  type Color,
   dashed,
   em,
   fill,
@@ -37,7 +37,7 @@ import { boldFont, gothicFont } from "./styles/fonts.js";
 const Notation =
   (
     label: string,
-    borderColor: CMYK,
+    borderColor: Color,
     borderStyle: typeof solid | typeof dashed = solid,
   ) =>
   ({ children }: { children?: JsxElement }): JsxElement => (

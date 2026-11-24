@@ -28,7 +28,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-          cache: yarn
+          cache: npm
 
       - name: Resolve target articles
         id: changed
@@ -63,7 +63,7 @@ jobs:
 
       - name: Install dependencies
         if: steps.changed.outputs.names != ''
-        run: yarn install --frozen-lockfile
+        run: npm ci
 
       - name: Build PDFs
         if: steps.changed.outputs.names != ''
@@ -72,7 +72,7 @@ jobs:
             [ -z "$name" ] && continue
             [ -f "articles/$name/index.mdx" ] || { echo "skip: $name (no index.mdx)"; continue; }
             echo "::group::Build $name"
-            yarn build "$name"
+            npm run build "$name"
             echo "::endgroup::"
           done <<< "${{ steps.changed.outputs.names }}"
 

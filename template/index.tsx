@@ -5,7 +5,6 @@ import {
   bottom,
   type CompositeFont,
   captionTransformer,
-  cmyk,
   em,
   fill,
   fn,
@@ -51,7 +50,7 @@ import {
 } from "@minitype/tsx";
 import type { AuthorProfileProps } from "./components.js";
 import * as sharedComponents from "./components.js";
-import { bookMetadata } from "./config.js";
+import { bookMetadata, USES_COLOR } from "./config.js";
 import { colors } from "./styles/colors.js";
 import {
   articleNumberUltraLightFont,
@@ -63,6 +62,7 @@ import { documentStyle, pageSizeMm, textWidth } from "./styles/style.js";
 import { createTobiraRenderer } from "./tobira.js";
 import { Toc } from "./toc.js";
 import { formatCode } from "./utils/format-code.js";
+import { grayscaleImageTransformer } from "./utils/grayscale.js";
 import { Nombre } from "./utils/nombre.js";
 import {
   extractPosition,
@@ -138,6 +138,8 @@ const minitypeOptions = {
     headingTransformer(),
     captionTransformer,
     footnoteTransformer(FOOTNOTE_MARK_OPTIONS),
+    // モノクロ出力時は画像もグレースケールに変換
+    ...(USES_COLOR ? [] : [grayscaleImageTransformer]),
   ],
 };
 
@@ -282,14 +284,20 @@ export const evaluateArticle = async (mdxPath: string): Promise<MdxResult> => {
     author && typeof authorDetail === "string" && authorDetail
       ? `${author}（${authorDetail}）`
       : author;
+  // 記事中の画像パスは記事ディレクトリからの相対パスとして解決する．
+  // 記事ディレクトリに該当ファイルがなければプロジェクトルートから解決する．
+  const articleDir = path.dirname(path.resolve(mdxPath));
+  const resolveArticleAsset = (src: string): string => {
+    const fromArticle = path.resolve(articleDir, src);
+    return existsSync(fromArticle) ? fromArticle : path.resolve(src);
+  };
   const authorImage =
     typeof frontmatter["author-image"] === "string"
-      ? frontmatter["author-image"]
+      ? resolveArticleAsset(frontmatter["author-image"])
       : undefined;
 
   // 記事ディレクトリの components.tsx / .ts を自動ロードしてコンポーネント登録する．
   // この import() は ssrLoadModule 経由で実行されるため Vite のトランスフォームが適用される．
-  const articleDir = path.dirname(mdxPath);
   let articleComponents: Record<string, unknown> = {};
   for (const ext of ["tsx", "ts"]) {
     const compPath = path.join(articleDir, `components.${ext}`);
@@ -308,7 +316,10 @@ export const evaluateArticle = async (mdxPath: string): Promise<MdxResult> => {
     sharedComponents.AuthorProfile({
       ...props,
       name: props.name ?? authorName,
-      image: props.image ?? authorImage,
+      image:
+        props.image !== undefined
+          ? resolveArticleAsset(props.image)
+          : authorImage,
     });
 
   const preprocessors = [
@@ -321,8 +332,7 @@ export const evaluateArticle = async (mdxPath: string): Promise<MdxResult> => {
   const preprocessed = preprocessors.reduce((s, fn) => fn(s), content);
   return evaluateMdxString(preprocessed, {
     baseUrl: new URL(`file://${path.resolve(mdxPath)}`),
-    // 記事中の画像パスはプロジェクトルートからの相対パスで記述している
-    resolveAsset: (src) => path.resolve(src),
+    resolveAsset: resolveArticleAsset,
     components: {
       ...createMdxComponents(autoFormat),
       ...sharedComponents,
@@ -556,7 +566,7 @@ const compositeArticle = ({
               firstIndent: 0,
             }}
           >
-            <Command style={{ effects: [fill(cmyk(0, 0, 0, 15))] }}>
+            <Command style={{ effects: [fill(colors.gray15)] }}>
               {displayNum.startsWith("1") && displayNum.length > 1 ? (
                 <>
                   {displayNum[0]}

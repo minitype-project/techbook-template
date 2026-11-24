@@ -1,5 +1,12 @@
-import { cmyk } from "@minitype/minitype";
+import { cmyk, gray } from "@minitype/minitype";
 import { USES_COLOR } from "../config.js";
+
+/**
+ * K の濃度から色を作成する．
+ * USES_COLOR が false のときはグレースケール色空間で出力する．
+ */
+const kToColor = (value: number) =>
+  USES_COLOR ? cmyk(0, 0, 0, value) : gray(100 - value);
 
 /**
  * USES_COLOR が false のとき CMYK をグレースケール（K 5 刻み）に変換する．
@@ -13,20 +20,20 @@ export const color = (c: number, m: number, y: number, k: number) => {
   const b = (1 - y / 100) * (1 - k / 100);
   const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
   const kGray = Math.round(((1 - lum) * 100) / 5) * 5;
-  return cmyk(0, 0, 0, kGray);
+  return kToColor(kGray);
 };
 
 /**
  * 色定義．
  */
 export const colors = {
-  white: cmyk(0, 0, 0, 0),
-  gray5: cmyk(0, 0, 0, 5),
-  gray15: cmyk(0, 0, 0, 15),
-  gray40: cmyk(0, 0, 0, 40),
-  gray65: cmyk(0, 0, 0, 65),
-  gray80: cmyk(0, 0, 0, 80),
-  black: cmyk(0, 0, 0, 100),
+  white: kToColor(0),
+  gray5: kToColor(5),
+  gray15: kToColor(15),
+  gray40: kToColor(40),
+  gray65: kToColor(65),
+  gray80: kToColor(80),
+  black: kToColor(100),
   // Notation
   note: color(90, 20, 0, 25),
   warning: color(10, 75, 55, 10),

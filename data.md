@@ -6,7 +6,7 @@
 
 データの準備：
 
-1. 以下の設定で `yarn build` を実行
+1. 以下の設定で `npm run build` を実行
 
    ```ts
    const USES_ASYMMETRIC_MARGINS = false;
@@ -23,7 +23,7 @@ Adobe Acrobat Pro での作業：
 
 ## サンプルデータ
 
-1. 電子版データを作成した後に，`yarn sample` を実行
+1. 電子版データを作成した後に，`npm run sample` を実行
 2. `data/ebook-v*-sample.pdf` が生成される
 
 ## 入稿用データ
@@ -33,7 +33,7 @@ Adobe Acrobat Pro での作業：
 
 データの準備：
 
-1. 以下の設定で `yarn build`，`yarn build:tobira-padding` を実行
+1. 以下の設定で `npm run build`，`npm run build:tobira-padding` を実行
 
    ```ts
    const USES_ASYMMETRIC_MARGINS = true;
