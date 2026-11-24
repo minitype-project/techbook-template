@@ -1,0 +1,13 @@
+# minitype
+node_modules/
+font-caches.db
+*.local
+*.db-shm
+*.db-wal
+
+# InDesign
+*.idlk
+
+# その他
+dist/*
+!dist/sample.pdf

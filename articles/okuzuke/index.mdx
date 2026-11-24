@@ -1,0 +1,41 @@
+---
+title: 奥付
+---
+
+import { Section, Vspace } from "@minitype/tsx";
+import { ColophonBookTitle, ColophonRow, Divider } from "./components";
+import { prefaceBodyFont } from "../../template/styles/fonts.js";
+
+<Vspace space={96} />
+
+<ColophonBookTitle>書籍名</ColophonBookTitle>
+<Vspace space={1} />
+<Section block={{ paragraph: { font: prefaceBodyFont, firstIndent: 0 } }}>
+2026 年 xx 月 xx 日　初版発行<Br />
+</Section>
+
+<Vspace space={4} />
+
+<Divider />
+
+<Vspace space={7} />
+
+<ColophonRow label="発行者" alignNames lines={["発行者名（test@example.com）"]} />
+<Vspace space={4} />
+<ColophonRow label="著　者" alignNames lines={["著者名（test@example.com）"]} />
+<Vspace space={4} />
+<ColophonRow
+  label="連絡先"
+  lines={[
+    {
+      text: "https://example.com",
+      href: "https://example.com"
+    },
+    {
+      text: "X：@screen_name",
+      href: "https://x.com/screen_name"
+    }
+  ]}
+/>
+<Vspace space={4} />
+<ColophonRow label="印刷所" lines={["印刷所名"]} />

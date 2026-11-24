@@ -1,7 +1,6 @@
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { PDFDocument } from "pdf-lib";
 import {
-  articleDisplayNumber,
   articleOrder,
   type PartType,
   partLabels,
@@ -10,6 +9,7 @@ import {
 import {
   type ArticleMeta,
   type ArticlePart,
+  assignIds,
   buildArticle,
   buildBook,
   buildTobira,
@@ -97,6 +97,21 @@ const loadParts = async <Article extends ArticleMeta>(
 };
 
 /**
+ * 書籍での掲載順に基づく記事の表示用番号を返す．
+ * 個別ビルドでも書籍と同じ番号を使うため，書籍ビルドと同じ {@link assignIds} で採番する．
+ * @param name 記事のディレクトリ名．
+ * @returns `articleOrder` に含まれない，または番号を表示しない記事の場合は undefined．
+ */
+const findDisplayNumber = async (name: string): Promise<string | undefined> => {
+  const parts = assignIds(
+    await loadParts((mdxPath) => ({ ...loadArticleMeta(mdxPath), mdxPath })),
+  );
+  return parts
+    .flatMap((part) => part.articles)
+    .find((article) => article.mdxPath === articlePath(name))?.displayNum;
+};
+
+/**
  * 記事を単独でビルドし，dist/<name>.pdf に出力する．
  * @param name 記事のディレクトリ名．
  */
@@ -104,7 +119,7 @@ const buildArticlePdf = async (name: string) => {
   const article = applyPartStyle(
     {
       ...(await loadArticle(articlePath(name))),
-      displayNum: articleDisplayNumber(name),
+      displayNum: await findDisplayNumber(name),
     },
     findPartType(name),
   );

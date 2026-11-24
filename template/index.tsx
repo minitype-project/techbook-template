@@ -624,7 +624,7 @@ const compositeColophon = ({ blocks }: ArticleData): JsxElement => {
 /**
  * 部と記事に，リンク用の ID，表示用通し番号，部扉の番号を付与する．
  */
-const assignIds = <Article extends ArticleMeta>(
+export const assignIds = <Article extends ArticleMeta>(
   parts: ArticlePart<Article>[],
 ) => {
   let articleIndex = 0;
