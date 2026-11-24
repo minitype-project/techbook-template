@@ -1,0 +1,33 @@
+{
+  "name": "techbook-template",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx scripts/dev.ts",
+    "build": "tsx scripts/build.ts",
+    "build:all": "BUILD_ALL=1 tsx scripts/build.ts",
+    "build:toc": "BUILD_TOC=1 tsx scripts/build.ts",
+    "build:tobira": "BUILD_TOBIRA=1 tsx scripts/build.ts",
+    "build:tobira-padding": "BUILD_TOBIRA_PADDING=1 tsx scripts/build.ts",
+    "sample": "tsx scripts/generate-sample.ts",
+    "diff-pdf": "tsx scripts/diff-pdf.ts",
+    "check": "biome check",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@minitype/minitype": "^0.2.0",
+    "@minitype/tsx": "^0.2.2"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.6.9",
+    "@biomejs/js-api": "^6.1.0",
+    "@biomejs/wasm-nodejs": "^2.6.9",
+    "@minitype/vite-plugin": "^0.3.0",
+    "@types/node": "^26.6.6",
+    "tsx": "~4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.1"
+  }
+}
