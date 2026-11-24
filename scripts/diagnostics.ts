@@ -3,7 +3,8 @@ import type { Diagnostic } from "@minitype/minitype";
 type Document = { getDiagnostics: () => Promise<Diagnostic[]> };
 
 /**
- * 組版結果に豆腐（グリフの存在しない文字）が含まれる場合，エラーを表示してビルドを終了する．
+ * 組版結果に豆腐（グリフの存在しない文字）が含まれる場合，例外を投げる．
+ * dev サーバではプレビューにエラーとして表示される．
  * @param doc minitype の組版結果．
  */
 export const assertNoMissingGlyphs = async (doc: Document) => {
@@ -13,11 +14,10 @@ export const assertNoMissingGlyphs = async (doc: Document) => {
   if (missingGlyphs.length === 0) {
     return;
   }
-  for (const diagnostic of missingGlyphs) {
-    console.error(`[missing-glyph] ${diagnostic.message}`);
-  }
-  console.error(
-    `\nBuild failed: ${missingGlyphs.length} missing glyph(s) found.`,
+  const messages = missingGlyphs.map(
+    (diagnostic) => `[missing-glyph] ${diagnostic.message}`,
   );
-  process.exit(1);
+  throw new Error(
+    `Build failed: ${missingGlyphs.length} missing glyph(s) found.\n${messages.join("\n")}`,
+  );
 };

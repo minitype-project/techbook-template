@@ -1,13 +1,16 @@
 # techbook-template
 
-TypeScript ライブラリとして提供される組版エンジン [minitype](https://typeset.jp/) を用いて，Markdown + TSX（MDX）を用いて技術同人誌（B5 判，横組み）を執筆するためのテンプレートです．
+組版エンジン [minitype](https://typeset.jp/) を用いて技術同人誌（B5 判，横組み）を制作するためのテンプレートです．
+Markdown + TSX（MDX）を用いて記事を執筆します．
+
+＜図＞
 
 本テンプレートは，以下の特徴を有します．
 
 - **Markdown + JSX による執筆**<br />
   本文を Markdown で手軽に記述しつつ．注記，コラム，複雑な表など，Markdown のみでは記述しにくい表現には JSX コンポーネントを利用できます．
 - **高品質な日本語組版**<br />
-  日本語組版エンジン minitype を使用して，高品質に組版された PDF を生成できます．
+  高度な日本語組版に対応した minitype を使用して，高品質に組版された PDF を生成できます．
 - **複数著者による制作に対応**<br />
   記事ごとにディレクトリを分けて執筆できます．誌面のスタイルは一元管理されるため，各著者がレイアウトを調整する必要はありません．目次や扉も自動で生成されます．
 - **快適な執筆環境**<br />
@@ -17,9 +20,7 @@ TypeScript ライブラリとして提供される組版エンジン [minitype](
 - **すぐに利用可能**<br />
   Node.js の環境があればすぐに執筆を開始できます．
 
-＜図＞
-
-記法やテンプレートの仕組みについては，サンプル記事（[articles/sample/index.mdx](./articles/sample/index.mdx)，コンパイルされた PDF：[dist/sample.pdf](./dist/sample.pdf)）で解説しています．
+テンプレートの仕組みや記法に関しては，サンプル記事（[articles/sample/index.mdx](./articles/sample/index.mdx)，PDF：[dist/sample.pdf](./dist/sample.pdf)）で解説しています．
 
 ## クイックスタート
 
@@ -110,7 +111,7 @@ npm run build:tobira-padding
   ```
 
 - 記事末尾には著者紹介として，著者近影 + 自己紹介を含めることができます．
-- チェックリストとして [checklist.md](./checklist.md) を添付しています．よろしければ参考にしてください．
+- チェックリストとして [docs/checklist.md](./docs/checklist.md) を添付しています．よろしければ参考にしてください．
 
 ## 設定
 
@@ -119,6 +120,7 @@ npm run build:tobira-padding
 | 項目 | 説明 |
 | --- | --- |
 | `articleOrder` | 書籍に含める記事のディレクトリ名と掲載順 |
+| `USES_PARTS` | 記事を「〜の部」でグループ化するか |
 | `USES_OSS_FONTS` | 有償フォントの代わりにオープンソースフォントを使用するか |
 | `USES_COLOR` | 文書をカラーで出力するか（false のとき，印刷用にグレースケール（K5% 刻み）で出力 + 画像をグレースケールに変換） |
 | `USES_ASYMMETRIC_MARGINS` | ノドの余白を広く，小口の余白を狭くするかどうか |
@@ -140,10 +142,9 @@ npm run build:tobira-padding
 
 ## 入稿用データ作成，データチェック
 
-電子版・入稿用データの作り方は [data.md](./data.md) を参照してください．
+電子版・入稿用データの作り方は [docs/data.md](./docs/data.md) を参照してください．
 
 また，以下のコマンドにより，コンパイルされた PDF の差分（ページ数，しおり，抽出されたテキスト，見た目）を検出することができます．
-本コマンドの実行には poppler（`pdftoppm`）と ImageMagick（`magick`）が必要です．
 
 ```bash
 # 2 つの PDF の差分（ページ数，しおり，テキスト，見た目）を検査
@@ -153,7 +154,7 @@ npm run diff [old.pdf] [new.pdf]
 
 ## ライセンス
 
-Copyright (c) 2026 Yuto Wada. This software is released under the MIT License, see [LICENSE](./license).
+Copyright (c) 2026 Yuto Wada. This software is released under the MIT License, see [LICENSE](./LICENSE).
 
 `fonts/` 配下のフォントに関しては，[SIL Open Font License 1.1](https://openfontlicense.org/) の下で再配布しています．
 詳細なライセンスに関しては，`fonts/LICENSE-*.txt` を参照してください．

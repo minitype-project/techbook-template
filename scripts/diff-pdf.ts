@@ -10,6 +10,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   getDocument,
   type PDFDocumentProxy,
@@ -82,8 +83,9 @@ const flattenOutline = async (doc: PDFDocumentProxy): Promise<string[]> => {
 const loadPdf = async (path: string): Promise<PdfInfo> => {
   const doc = await getDocument({
     data: new Uint8Array(readFileSync(path)),
-    cMapUrl: new URL("../node_modules/pdfjs-dist/cmaps/", import.meta.url)
-      .pathname,
+    cMapUrl: fileURLToPath(
+      new URL("../node_modules/pdfjs-dist/cmaps/", import.meta.url),
+    ),
     cMapPacked: true,
     verbosity: 0,
   }).promise;

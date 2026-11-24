@@ -1,5 +1,9 @@
-export const articlesDir = new URL("../articles/", import.meta.url).pathname;
-export const distDir = new URL("../dist/", import.meta.url).pathname;
+import { fileURLToPath } from "node:url";
+
+export const articlesDir = fileURLToPath(
+  new URL("../articles/", import.meta.url),
+);
+export const distDir = fileURLToPath(new URL("../dist/", import.meta.url));
 
 /**
  * 記事の MDX ファイルのパスを返す．

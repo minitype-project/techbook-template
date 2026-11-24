@@ -1,4 +1,5 @@
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { PDFDocument } from "pdf-lib";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { sectionLabels } from "../template/config.js";
@@ -8,7 +9,7 @@ import { extractPages, resolveOutlinePageIndex } from "./pdf.js";
 // 表紙・目次・各記事の 1 ページ目・裏表紙を抜粋して data/ebook-v<N>-sample.pdf を出力する．
 // ページの位置は PDF のアウトライン（しおり）から求める．
 
-const dataDir = new URL("../data/", import.meta.url).pathname;
+const dataDir = fileURLToPath(new URL("../data/", import.meta.url));
 
 const TOC_TITLE = "目次";
 /**

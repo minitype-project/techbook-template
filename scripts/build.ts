@@ -5,6 +5,7 @@ import {
   articleDisplayNumber,
   articleOrder,
   sectionLabels,
+  USES_PARTS,
 } from "../template/config.js";
 import {
   type ArticleMeta,
@@ -89,7 +90,8 @@ const loadSections = async <Article extends ArticleMeta>(
       articles.push(applySectionStyle(await load(mdxPath), section.type));
     }
     sections.push({
-      label: sectionLabels[section.type],
+      // 部を使用しない場合は空のラベルとし，部扉と目次の部見出しを省く
+      label: USES_PARTS ? sectionLabels[section.type] : "",
       articles,
       beforeToc: section.type === "preface",
     });
@@ -119,6 +121,10 @@ const buildArticlePdf = async (name: string) => {
  * 扉ページのみをビルドし，dist/tobira.pdf（塗り足しありの場合は dist/tobira-padding.pdf）に出力する．
  */
 const buildTobiraPdf = async () => {
+  if (!USES_PARTS) {
+    console.error("USES_PARTS is false, skipping tobira build");
+    return;
+  }
   const sections = await loadSections(loadArticleMeta);
   const fileName = tobiraBleedMm ? "tobira-padding.pdf" : "tobira.pdf";
   const doc = buildTobira(sections, tobiraBleedMm);

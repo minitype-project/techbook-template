@@ -6,8 +6,8 @@
 | --- | --- |
 | 全般（セットアップ，コマンド，設定項目，フロントマター） | [README.md](./README.md) |
 | 記事の執筆・修正（記法，JSX コンポーネント，参考文献，図表の参照） | [articles/sample/index.mdx](./articles/sample/index.mdx) |
-| 記事のレビュー・校正 | [checklist.md](./checklist.md) |
-| 電子版・入稿用データの作成 | [data.md](./data.md) |
+| 記事のレビュー・校正 | [docs/checklist.md](./docs/checklist.md) |
+| 電子版・入稿用データの作成 | [docs/data.md](./docs/data.md) |
 
 ## minitype の API
 

@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   all,
   bottom,
@@ -74,7 +75,7 @@ import {
 } from "./utils/preprocess.js";
 import { flattenTitle } from "./utils/title.js";
 
-const fontDir = new URL("../fonts", import.meta.url).pathname;
+const fontDir = fileURLToPath(new URL("../fonts", import.meta.url));
 
 /**
  * MDX ファイル 1 記事分の評価済みデータ．
