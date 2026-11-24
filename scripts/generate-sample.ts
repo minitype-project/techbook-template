@@ -2,7 +2,7 @@ import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { PDFDocument } from "pdf-lib";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
-import { sectionLabels } from "../template/config.js";
+import { partLabels } from "../template/config.js";
 import { extractPages, resolveOutlinePageIndex } from "./pdf.js";
 
 // data/ebook-v<N>.pdf のうち最新版から，
@@ -19,7 +19,7 @@ const excludedTitles = new Set([
   "まえがき",
   "あとがき",
   TOC_TITLE,
-  ...Object.values(sectionLabels).filter((label) => label !== ""),
+  ...Object.values(partLabels).filter((label) => label !== ""),
 ]);
 
 /**

@@ -47,14 +47,14 @@ interface TocArticle {
 }
 
 interface TocProps {
-  sections: { articles: TocArticle[] }[];
+  parts: { articles: TocArticle[] }[];
 }
 
 /**
  * 目次の項目間のギャップ．
  */
 const GAPS: Gap[] = [
-  ["fallback", "toc-section", 14],
+  ["fallback", "toc-part", 14],
   ["fallback", "toc-article", 10],
   ...(documentStyle.gaps ?? []),
 ];
@@ -114,8 +114,8 @@ const createTocEntryMapper = (
     if (level === 1) {
       articleIndent = numberMap.has(headingId) ? 11 : 0;
 
-      // カテゴリ見出し
-      if (headingId.startsWith("section-h1-")) {
+      // 部見出し
+      if (headingId.startsWith("part-h1-")) {
         return box([
           p([[titleCommand]], {
             size: Q(22),
@@ -202,12 +202,12 @@ const createTocEntryMapper = (
 /**
  * 目次ページを組版する．
  */
-export const Toc = ({ sections }: TocProps): JsxElement => {
+export const Toc = ({ parts }: TocProps): JsxElement => {
   const authorMap = new Map<string, string>();
   const numberMap = new Map<string, string>();
   const titleMap = new Map<string, string>();
-  for (const section of sections) {
-    for (const article of section.articles) {
+  for (const part of parts) {
+    for (const article of part.articles) {
       if (article.h1Id) {
         titleMap.set(
           article.h1Id,
@@ -269,8 +269,8 @@ export const Toc = ({ sections }: TocProps): JsxElement => {
               const entry = mapTocEntry(level, headingId, inlines);
               return level === 1
                 ? box([entry], {
-                    gapRole: headingId.startsWith("section-h1-")
-                      ? "toc-section"
+                    gapRole: headingId.startsWith("part-h1-")
+                      ? "toc-part"
                       : "toc-article",
                   })
                 : entry;

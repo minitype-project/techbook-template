@@ -125,12 +125,12 @@ export interface ArticleData {
 export type ArticleMeta = Omit<ArticleData, "blocks">;
 
 /**
- * 複数記事をまとめたセクション．
+ * 複数記事をまとめた部．
  */
-export interface ArticleSection<Article extends ArticleMeta = ArticleData> {
-  /** セクション扉に表示するラベル． */
+export interface ArticlePart<Article extends ArticleMeta = ArticleData> {
+  /** 部扉に表示するラベル． */
   label: string;
-  /** セクション内の記事一覧． */
+  /** 部内の記事一覧． */
   articles: Article[];
   /** TOC より前に配置するかどうか（まえがきなど）． */
   beforeToc?: boolean;
@@ -622,20 +622,20 @@ const compositeColophon = ({ blocks }: ArticleData): JsxElement => {
 };
 
 /**
- * セクションと記事に，リンク用の ID，表示用通し番号，部扉の番号を付与する．
+ * 部と記事に，リンク用の ID，表示用通し番号，部扉の番号を付与する．
  */
 const assignIds = <Article extends ArticleMeta>(
-  sections: ArticleSection<Article>[],
+  parts: ArticlePart<Article>[],
 ) => {
   let articleIndex = 0;
   let displayIndex = 0;
   let partNo = 0;
-  return sections.map((section, sectionIndex) => ({
-    ...section,
-    sectionH1Id: `section-h1-${sectionIndex}`,
-    // 部扉は目次より後にあり，ラベルを持つセクションにのみ置く
-    partNo: !section.beforeToc && section.label ? ++partNo : undefined,
-    articles: section.articles.map((article) => ({
+  return parts.map((part, partIndex) => ({
+    ...part,
+    partH1Id: `part-h1-${partIndex}`,
+    // 部扉は目次より後にあり，ラベルを持つ部にのみ置く
+    partNo: !part.beforeToc && part.label ? ++partNo : undefined,
+    articles: part.articles.map((article) => ({
       ...article,
       h1Id: article.colophon ? undefined : `article-h1-${articleIndex++}`,
       displayNum:
@@ -650,24 +650,24 @@ const assignIds = <Article extends ArticleMeta>(
  * 目次 + 複数記事をビルドする．
  */
 export const buildBook = (
-  sections: ArticleSection[],
+  parts: ArticlePart[],
 ): ReturnType<typeof minitypeJSX> => {
-  const sectionsWithIds = assignIds(sections);
+  const partsWithIds = assignIds(parts);
 
   // Document の直下にフラットに展開（Group のネストを避ける）
-  const prefaceGroups: JsxElement[] = sectionsWithIds
-    .filter((section) => section.beforeToc)
-    .flatMap((section) =>
-      section.articles.map((article) => compositeArticle(article)),
+  const prefaceGroups: JsxElement[] = partsWithIds
+    .filter((part) => part.beforeToc)
+    .flatMap((part) =>
+      part.articles.map((article) => compositeArticle(article)),
     );
 
-  const bodyGroups: JsxElement[] = sectionsWithIds
-    .filter((section) => !section.beforeToc)
-    .flatMap((section) => [
-      ...(section.partNo !== undefined
-        ? [<Tobira section={section} partNo={section.partNo} />]
+  const bodyGroups: JsxElement[] = partsWithIds
+    .filter((part) => !part.beforeToc)
+    .flatMap((part) => [
+      ...(part.partNo !== undefined
+        ? [<Tobira part={part} partNo={part.partNo} />]
         : []),
-      ...section.articles.map((article) =>
+      ...part.articles.map((article) =>
         article.colophon
           ? compositeColophon(article)
           : compositeArticle(article),
@@ -686,7 +686,7 @@ export const buildBook = (
         </Flow>
       </Group>
       {prefaceGroups}
-      <Toc sections={sectionsWithIds} />
+      <Toc parts={partsWithIds} />
       {bodyGroups}
     </Document>
   );
@@ -697,14 +697,14 @@ export const buildBook = (
  * 扉ページのみをビルドする（MDX 評価なし）．
  */
 export const buildTobira = (
-  sections: ArticleSection<ArticleMeta>[],
+  parts: ArticlePart<ArticleMeta>[],
   bleedMm = 0,
 ): ReturnType<typeof minitypeJSX> => {
-  const sectionsWithIds = assignIds(sections);
+  const partsWithIds = assignIds(parts);
 
-  const tobiraGroups = sectionsWithIds.flatMap((section) =>
-    section.partNo !== undefined
-      ? [<Tobira section={section} partNo={section.partNo} bleedMm={bleedMm} />]
+  const tobiraGroups = partsWithIds.flatMap((part) =>
+    part.partNo !== undefined
+      ? [<Tobira part={part} partNo={part.partNo} bleedMm={bleedMm} />]
       : [],
   );
 

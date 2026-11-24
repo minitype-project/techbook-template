@@ -3,9 +3,7 @@ import {
   em,
   fill,
   fr,
-  hbox,
   left,
-  pageref,
   physical,
   Q,
   TEXT_SPACE_HEADTAIL_HALF,
@@ -43,14 +41,14 @@ export interface TobiraArticle {
   author?: string;
 }
 
-export interface TobiraSection {
-  sectionH1Id: string;
+export interface TobiraPart {
+  partH1Id: string;
   label: string;
   articles: TobiraArticle[];
 }
 
 interface TobiraProps {
-  section: TobiraSection;
+  part: TobiraPart;
   /** 部の番号（PART n）． */
   partNo: number;
   /**
@@ -130,9 +128,6 @@ const TITLE_AUTHOR_GAP_MM = 0.5;
  * 記事名が 1 行の項目も同じ枠に入れるので，どの部の扉でも一覧の上端と各項目の位置が揃う（記事名は 2 行に収まる前提）．
  */
 const ENTRY_MM = 2 * LINE_MM + 1.3 + AUTHOR_MM * 1.5 + ENTRY_GAP_MM;
-
-// TODO: ページ番号の有無の比較用．TOBIRA_PAGES=1 で，記事名の最後の行から点線でページ番号へつなぐ
-const WITH_PAGES = !!process.env.TOBIRA_PAGES;
 
 // ------
 // コンポーネント
@@ -225,8 +220,6 @@ const TobiraEntry = ({ article }: { article: TobiraArticle }): JsxElement => {
             >
               {joinWithBr(title.split("\\n"))}
             </Command>
-            {WITH_PAGES && hbox(fr(1), "…")}
-            {WITH_PAGES && article.h1Id ? pageref(article.h1Id) : ""}
           </P>
           <Vspace space={TITLE_AUTHOR_GAP_MM} />
           <P style={{ size: AUTHOR_MM, font: gothicFont, firstIndent: 0 }}>
@@ -242,7 +235,7 @@ const TobiraEntry = ({ article }: { article: TobiraArticle }): JsxElement => {
  * 部扉ページを組版する．
  */
 export const Tobira = ({
-  section,
+  part,
   partNo,
   bleedMm = 0,
 }: TobiraProps): JsxElement => {
@@ -250,7 +243,7 @@ export const Tobira = ({
   const listTop =
     pageSizeMm.height -
     MARGIN.bottom -
-    section.articles.length * ENTRY_MM +
+    part.articles.length * ENTRY_MM +
     ENTRY_GAP_MM;
 
   return (
@@ -287,7 +280,7 @@ export const Tobira = ({
           </Box>
           <Vspace space={4} />
           <H1
-            id={section.sectionH1Id}
+            id={part.partH1Id}
             style={{
               font: cuteFont,
               size: Q(56),
@@ -296,7 +289,7 @@ export const Tobira = ({
             }}
           >
             {/* 長い名前は「・」の後で改行する（「フリースタイル・パソコンの部」） */}
-            {joinWithBr(section.label.split(/(?<=・)/))}
+            {joinWithBr(part.label.split(/(?<=・)/))}
           </H1>
         </Box>
       </Move>
@@ -307,7 +300,7 @@ export const Tobira = ({
         blockOffset={listTop + bleedMm}
         inlineSize={LIST_WIDTH}
       >
-        {section.articles.map((article) => (
+        {part.articles.map((article) => (
           <TobiraEntry article={article} />
         ))}
       </Flow>

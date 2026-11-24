@@ -1,15 +1,15 @@
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { PDFDocument } from "pdf-lib";
 import {
-  type ArticleType,
   articleDisplayNumber,
   articleOrder,
-  sectionLabels,
+  type PartType,
+  partLabels,
   USES_PARTS,
 } from "../template/config.js";
 import {
   type ArticleMeta,
-  type ArticleSection,
+  type ArticlePart,
   buildArticle,
   buildBook,
   buildTobira,
@@ -32,33 +32,30 @@ const tobiraBleedMm = process.env.BUILD_TOBIRA_PADDING ? 3 : 0;
 const buildTobiraOnly = !!process.env.BUILD_TOBIRA || tobiraBleedMm > 0;
 
 /**
- * セクション一覧に含まれる記事の総数を返す．
- * @param sections セクション一覧．
+ * 部の一覧に含まれる記事の総数を返す．
+ * @param parts 部の一覧．
  */
-const countArticles = (sections: ArticleSection[]): number => {
-  return sections.reduce(
-    (count, section) => count + section.articles.length,
-    0,
-  );
+const countArticles = (parts: ArticlePart[]): number => {
+  return parts.reduce((count, part) => count + part.articles.length, 0);
 };
 
 /**
- * 記事が属するセクションの種別を返す．
+ * 記事が属する部の種類を返す．
  * @param name 記事のディレクトリ名．
  * @returns `articleOrder` に含まれない場合は undefined．
  */
-const findSectionType = (name: string): ArticleType | undefined => {
-  return articleOrder.find((section) => section.articles.includes(name))?.type;
+const findPartType = (name: string): PartType | undefined => {
+  return articleOrder.find((part) => part.articles.includes(name))?.type;
 };
 
 /**
- * セクションの種別に応じて，記事にスタイルを適用する．
+ * 部の種類に応じて，記事にスタイルを適用する．
  * @param article 記事データ．
- * @param type セクションの種別．
+ * @param type 部の種類．
  */
-const applySectionStyle = <Article extends ArticleMeta>(
+const applyPartStyle = <Article extends ArticleMeta>(
   article: Article,
-  type: ArticleType | undefined,
+  type: PartType | undefined,
 ): Article => {
   if (type === "colophon") {
     return { ...article, numbered: false, colophon: true };
@@ -70,33 +67,33 @@ const applySectionStyle = <Article extends ArticleMeta>(
 };
 
 /**
- * `articleOrder` の設定に従って各記事を読み込み，セクション一覧を返す．
+ * `articleOrder` の設定に従って各記事を読み込み，部の一覧を返す．
  * 存在しない記事は警告を表示して読み飛ばす．
  * @param load MDX ファイルのパスから記事データを読み込む関数．
- * @returns セクションごとにグループ化された記事データの配列．
+ * @returns 部ごとにグループ化された記事データの配列．
  */
-const loadSections = async <Article extends ArticleMeta>(
+const loadParts = async <Article extends ArticleMeta>(
   load: (mdxPath: string) => Article | Promise<Article>,
-): Promise<ArticleSection<Article>[]> => {
-  const sections: ArticleSection<Article>[] = [];
-  for (const section of articleOrder) {
+): Promise<ArticlePart<Article>[]> => {
+  const parts: ArticlePart<Article>[] = [];
+  for (const part of articleOrder) {
     const articles: Article[] = [];
-    for (const name of section.articles) {
+    for (const name of part.articles) {
       const mdxPath = articlePath(name);
       if (!existsSync(mdxPath)) {
         console.error(`Article not found, skipping: ${name}`);
         continue;
       }
-      articles.push(applySectionStyle(await load(mdxPath), section.type));
+      articles.push(applyPartStyle(await load(mdxPath), part.type));
     }
-    sections.push({
+    parts.push({
       // 部を使用しない場合は空のラベルとし，部扉と目次の部見出しを省く
-      label: USES_PARTS ? sectionLabels[section.type] : "",
+      label: USES_PARTS ? partLabels[part.type] : "",
       articles,
-      beforeToc: section.type === "preface",
+      beforeToc: part.type === "preface",
     });
   }
-  return sections;
+  return parts;
 };
 
 /**
@@ -104,12 +101,12 @@ const loadSections = async <Article extends ArticleMeta>(
  * @param name 記事のディレクトリ名．
  */
 const buildArticlePdf = async (name: string) => {
-  const article = applySectionStyle(
+  const article = applyPartStyle(
     {
       ...(await loadArticle(articlePath(name))),
       displayNum: articleDisplayNumber(name),
     },
-    findSectionType(name),
+    findPartType(name),
   );
   const doc = buildArticle(article);
   await assertNoMissingGlyphs(doc);
@@ -125,9 +122,9 @@ const buildTobiraPdf = async () => {
     console.error("USES_PARTS is false, skipping tobira build");
     return;
   }
-  const sections = await loadSections(loadArticleMeta);
+  const parts = await loadParts(loadArticleMeta);
   const fileName = tobiraBleedMm ? "tobira-padding.pdf" : "tobira.pdf";
-  const doc = buildTobira(sections, tobiraBleedMm);
+  const doc = buildTobira(parts, tobiraBleedMm);
   await assertNoMissingGlyphs(doc);
   await doc.save(`${distDir}${fileName}`);
   console.log(`Built: dist/${fileName}`);
@@ -149,8 +146,8 @@ const buildAllArticlePdfs = async () => {
  * 書籍全体をビルドし，最初の記事が始まるページまでを dist/toc.pdf に出力する．
  */
 const buildTocPdf = async () => {
-  const sections = await loadSections(loadArticle);
-  const book = buildBook(sections);
+  const parts = await loadParts(loadArticle);
+  const book = buildBook(parts);
   await assertNoMissingGlyphs(book);
   const layout = await book.getLayout();
 
@@ -165,7 +162,7 @@ const buildTocPdf = async () => {
   );
   writeFileSync(`${distDir}toc.pdf`, await tocDoc.save());
   console.log(
-    `Built: dist/toc.pdf (${tocPageCount} page(s), ${countArticles(sections)} article(s))`,
+    `Built: dist/toc.pdf (${tocPageCount} page(s), ${countArticles(parts)} article(s))`,
   );
 };
 
@@ -182,14 +179,12 @@ const formatTimestamp = (): string => {
  * config.ts の articleOrder に従って目次と全記事を結合し，dist/book-<timestamp>.pdf に出力する．
  */
 const buildBookPdf = async () => {
-  const sections = await loadSections(loadArticle);
+  const parts = await loadParts(loadArticle);
   const fileName = `book-${formatTimestamp()}.pdf`;
-  const book = buildBook(sections);
+  const book = buildBook(parts);
   await assertNoMissingGlyphs(book);
   await book.save(`${distDir}${fileName}`);
-  console.log(
-    `Built: dist/${fileName} (${countArticles(sections)} article(s))`,
-  );
+  console.log(`Built: dist/${fileName} (${countArticles(parts)} article(s))`);
 };
 
 const main = async () => {
