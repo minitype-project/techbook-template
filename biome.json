@@ -17,6 +17,11 @@
       "trailingCommas": "all"
     }
   },
+  "markdown": {
+    "formatter": {
+      "enabled": false
+    }
+  },
   "files": {
     "includes": ["**", "!**/node_modules", "!**/dist", "!**/*.svg"]
   }

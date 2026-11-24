@@ -1,0 +1,860 @@
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
+import {
+  all,
+  bottom,
+  type CompositeFont,
+  captionTransformer,
+  cmyk,
+  em,
+  fill,
+  fn,
+  footnoteTransformer,
+  fr,
+  headingTransformer,
+  type InlineOrExtender,
+  left,
+  physical,
+  Q,
+  ratio,
+  right,
+  showOnHeading,
+  solid,
+  TEXT_SPACE_HEADTAIL_HALF,
+  url,
+  wbr,
+} from "@minitype/minitype";
+import {
+  Box,
+  Br,
+  Caption,
+  Code,
+  Command,
+  Document,
+  evaluateMdxString,
+  Figure,
+  Flexbox,
+  Float,
+  Flow,
+  Group,
+  H1,
+  Image,
+  type InlineChildren,
+  type JsxElement,
+  Kern,
+  type MdxResult,
+  minitypeJSX,
+  Ol1,
+  P,
+  ResetLabel,
+  Section,
+  Url,
+  Vspace,
+} from "@minitype/tsx";
+import type { AuthorProfileProps } from "./components.js";
+import * as sharedComponents from "./components.js";
+import { bookMetadata } from "./config.js";
+import { colors } from "./styles/colors.js";
+import {
+  articleNumberUltraLightFont,
+  boldFont,
+  cuteFont,
+  gothicFont,
+} from "./styles/fonts.js";
+import { documentStyle, pageSizeMm, textWidth } from "./styles/style.js";
+import { createTobiraRenderer } from "./tobira.js";
+import { Toc } from "./toc.js";
+import { formatCode } from "./utils/format-code.js";
+import { Nombre } from "./utils/nombre.js";
+import {
+  CODE_FENCE_SPACE_SENTINEL,
+  extractPosition,
+  preprocessApostrophes,
+  preprocessAutoUrls,
+  preprocessCaption,
+  preprocessCodeFenceInfo,
+  preprocessParentheses,
+  preprocessQuotes,
+} from "./utils/preprocess.js";
+import { flattenTitle } from "./utils/title.js";
+
+const fontDir = new URL("../fonts", import.meta.url).pathname;
+
+/** MDX ファイル 1 記事分の評価済みデータ． */
+export interface ArticleData {
+  /** 記事本文の組版要素． */
+  blocks: JsxElement;
+  /** 記事タイトル（frontmatter の `title`）． */
+  title: string;
+  /** 目次用タイトル．略時は title を flatten した title を使用． */
+  titleToc?: string;
+  /** 扉用タイトル．省略時は title を flatten した title を使用． */
+  titleTobira?: string;
+  /** 著者名（frontmatter の `author`）． */
+  author?: string;
+  /** 著者補足情報（frontmatter の `author-detail`）． */
+  authorDetail?: string;
+  /** 目次リンク用の H1 要素 ID．{@link buildBook} が付与する． */
+  h1Id?: string;
+  /** 本文段落に使用する合成フォント（省略時は文書デフォルトの明朝体）． */
+  bodyFont?: CompositeFont;
+  /** false のとき通し番号を表示しない． */
+  numbered?: boolean;
+  /** 見出し上部の余白（mm）．省略時は 4 mm． */
+  topSpace?: number;
+  /** true のとき奥付として扱い，H1 タイトルを出力せず目次にも登録しない． */
+  colophon?: boolean;
+  /**
+   * buildBook が付与する表示用通し番号（"01", "02", …）．
+   * numbered が false のとき undefined．
+   */
+  displayNum?: string;
+}
+
+/** 複数記事をまとめたセクション． */
+export interface ArticleSection {
+  /** セクション扉に表示するラベル． */
+  label: string;
+  /** セクション内の記事一覧． */
+  articles: ArticleData[];
+  /** TOC より前に配置するセクションか（まえがきなど）． */
+  beforeToc?: boolean;
+}
+
+// ------
+// MDX カスタムコンポーネント
+// ------
+
+/**
+ * `pre` コンポーネントの `children` が mdxCode オブジェクトかどうかを判定する．
+ * `@minitype/tsx` 内部の `mdxCode` ハンドラが返す形式に対応する．
+ */
+const isMdxCode = (
+  v: unknown,
+): v is { _type: "mdxCode"; content: string; lang?: string; meta?: string } => {
+  return (
+    typeof v === "object" &&
+    v !== null &&
+    (v as { _type?: unknown })._type === "mdxCode"
+  );
+};
+
+// ハイフンの直後・スラッシュの直後に wbr を挿入して改行可能にする
+const buildUrlBody = (href: string): InlineOrExtender[] => {
+  const segments: string[] = [];
+  let start = 0;
+  for (let i = 0; i < href.length; i++) {
+    const ch = href[i];
+    if ((ch === "-" || ch === "/") && i + 1 < href.length) {
+      // スラッシュが連続する場合（例：://）は最初のスラッシュでは区切らない
+      if (ch === "/" && href[i + 1] === "/") {
+        continue;
+      }
+      segments.push(href.slice(start, i + 1));
+      start = i + 1;
+    }
+  }
+  if (start < href.length) {
+    segments.push(href.slice(start));
+  }
+  if (segments.length <= 1) {
+    return [href];
+  }
+  const body: InlineOrExtender[] = [];
+  for (let i = 0; i < segments.length; i++) {
+    if (i > 0) {
+      body.push(wbr());
+    }
+    body.push(segments[i]);
+  }
+  return body;
+};
+
+/**
+ * 脚注番号の書式（本文中の参照・脚注欄の両方）．数字だけだと見づらいため「*1」の形にする．
+ * 全角の「＊」は上付きにすると数字との間が空きすぎるため半角を用いる．
+ */
+const FOOTNOTE_MARK_OPTIONS = { before: "*" };
+
+/**
+ * minitype に渡すオプション．脚注側の番号も本文側の参照と同じ書式にする．
+ */
+const minitypeOptions = {
+  fontDir,
+  metadata: bookMetadata,
+  disableDefaultTransformers: true,
+  blockTransformers: [
+    headingTransformer(),
+    captionTransformer,
+    footnoteTransformer(FOOTNOTE_MARK_OPTIONS),
+  ],
+};
+
+/**
+ * MDX コンポーネントを作成するための評価関数．
+ */
+const createMdxComponents = (autoFormat: boolean) => ({
+  // リンク：表示テキストが URL そのものの場合，スラッシュ前・ハイフン後で改行可能にする
+  a: ({
+    href,
+    id,
+    children,
+    "data-footnote-ref": dataFootnoteRef,
+    "data-footnote-backref": dataFootnoteBackref,
+  }: Record<string, unknown>): JsxElement => {
+    if (dataFootnoteBackref !== undefined) {
+      return null as unknown as JsxElement;
+    }
+    if (
+      dataFootnoteRef &&
+      typeof id === "string" &&
+      id.startsWith("user-content-fnref-")
+    ) {
+      return fn(
+        id.slice("user-content-fnref-".length),
+        FOOTNOTE_MARK_OPTIONS,
+      ) as unknown as JsxElement;
+    }
+    const hrefStr = typeof href === "string" ? href : "";
+    const childStr = typeof children === "string" ? children : null;
+    if (
+      childStr !== null &&
+      childStr === hrefStr &&
+      /^https?:\/\//.test(hrefStr)
+    ) {
+      return url(hrefStr, buildUrlBody(hrefStr)) as unknown as JsxElement;
+    }
+    return Url({ href: hrefStr, children: children as InlineChildren });
+  },
+
+  // blockquote：左罫線付きの引用ブロック
+  blockquote: ({ children }: Record<string, unknown>): JsxElement => {
+    const filtered = Array.isArray(children)
+      ? (children as unknown[]).filter(
+          (c) => !(typeof c === "string" && /^\s*$/.test(c)),
+        )
+      : children;
+    return Box({
+      children: filtered as JsxElement,
+      style: {
+        border: left(solid(0.5, colors.gray40)),
+        padding: physical(2, 5),
+        splitable: true,
+        gapRole: "blockquote",
+      },
+    });
+  },
+
+  // コードブロックに背景を適用するために，Box でラップしたブロックを返す
+  // lang に ":" を含む場合（例：ts:ファイル名.ts），コロン以降をキャプションとして扱う
+  // キャプションに "#label" を含む場合（例：ts:ファイル名.ts#code:hello），label として登録する
+  // label に "@t" / "@b" を付与すると float top / bottom になる（例：#lst:hello@t）
+  pre: ({ children }: Record<string, unknown>): JsxElement => {
+    const rawContent = isMdxCode(children)
+      ? children.content
+      : String(children ?? "");
+    const rawLang = isMdxCode(children) ? (children.lang ?? "") : "";
+    const meta = isMdxCode(children) ? (children.meta ?? "") : "";
+    const colonIdx = rawLang.indexOf(":");
+    const lang = colonIdx >= 0 ? rawLang.slice(0, colonIdx) : rawLang;
+    const langCaption = colonIdx >= 0 ? rawLang.slice(colonIdx + 1) : "";
+    const rawCaption = meta ? `${langCaption} ${meta}` : langCaption;
+    const { rest: captionRest, position } = extractPosition(rawCaption);
+    const hashIdx = captionRest.lastIndexOf("#");
+    // preprocessCodeFenceInfo が info 文字列中の ASCII スペースをセンチネルに置換しているため，元の半角スペースに戻す．
+    const decodeSentinel = (s: string) =>
+      s.replaceAll(CODE_FENCE_SPACE_SENTINEL, " ");
+    const caption =
+      hashIdx >= 0
+        ? decodeSentinel(captionRest.slice(0, hashIdx).trim())
+        : decodeSentinel(captionRest);
+    const codeLabel =
+      hashIdx >= 0 ? captionRest.slice(hashIdx + 1) || undefined : undefined;
+    const content =
+      autoFormat && lang ? formatCode(rawContent, lang) : rawContent;
+    const code = Code({
+      children: content,
+      lang: lang || undefined,
+      label: codeLabel,
+    });
+    const codeBox = Box({
+      children: code,
+      style: {
+        splitable: true,
+        border: all(solid(0.2, colors.gray40)),
+        padding: physical(4, 5),
+        borderRadius: 1,
+        background: [fill(colors.gray5)],
+        gapRole: "code",
+        paddingOnBreak: false,
+      },
+    });
+    const result = caption
+      ? Box({
+          children: [codeBox, Caption({ children: caption })],
+          style: { gapRole: "code", splitable: true },
+        })
+      : codeBox;
+    return position ? Float({ children: result, position }) : result;
+  },
+
+  // 図（Markdown の ![]() 記法）
+  // alt に "#label" を含む場合（例：![キャプション#fig:cherry](url)），label として登録する
+  // src に "?ratio=0.5" を含む場合，ratio として使用する
+  // label に "@t" / "@b" を付与すると float top / bottom になる（例：#fig:cherry@t）
+  img: ({ src, alt }: Record<string, unknown>): JsxElement => {
+    const srcStr = typeof src === "string" ? src : "";
+    const qIdx = srcStr.indexOf("?");
+    const cleanSrc = qIdx >= 0 ? srcStr.slice(0, qIdx) : srcStr;
+    const query = qIdx >= 0 ? srcStr.slice(qIdx + 1) : "";
+    const params = new URLSearchParams(query);
+    const rawRatio = params.get("ratio");
+    const ratioValue = rawRatio ? parseFloat(rawRatio) : 1.0;
+    const altStr = typeof alt === "string" ? alt : "";
+    const { rest: altRest, position } = extractPosition(altStr);
+    const hashIdx = altRest.lastIndexOf("#");
+    const caption = hashIdx >= 0 ? altRest.slice(0, hashIdx) : altRest;
+    const figLabel =
+      hashIdx >= 0 ? altRest.slice(hashIdx + 1) || undefined : undefined;
+    const fig =
+      caption.length > 0
+        ? Figure({
+            src: cleanSrc,
+            style: { width: ratio(ratioValue), captionWidth: ratio(1.0) },
+            label: figLabel,
+            children: caption,
+          })
+        : Image({
+            src: cleanSrc,
+            style: { width: ratio(ratioValue), align: "center" },
+          });
+    return position ? Float({ children: fig, position }) : fig;
+  },
+
+  // 番号付きリスト（ol）のインデントを調整
+  ol: ({ children }: Record<string, unknown>): JsxElement => {
+    const indentEm = 1.5;
+    const olStyle = {
+      indent: em(indentEm),
+      firstIndent: em(-indentEm),
+    };
+    const items = (
+      Array.isArray(children) ? (children as unknown[]) : [children]
+    ).filter((c) => !(typeof c === "string" && /^\s*$/.test(c)));
+    const footnotes = items.filter(
+      (item) =>
+        typeof item === "object" &&
+        item !== null &&
+        "type" in item &&
+        (item as { type: unknown }).type === "footnote",
+    );
+    const listItems = items.flatMap((item) => {
+      if (footnotes.includes(item)) {
+        return [];
+      }
+      if (
+        typeof item !== "object" ||
+        item === null ||
+        !("_type" in item) ||
+        (item as { _type: unknown })._type !== "mdxLi"
+      ) {
+        return [item as JsxElement];
+      }
+      return [
+        Ol1({
+          children: (item as unknown as { children: unknown })
+            .children as JsxElement,
+          style: olStyle,
+        }),
+      ];
+    });
+    return listItems.length > 0
+      ? ({ _type: "listBlock", items: listItems } as unknown as JsxElement)
+      : (footnotes as unknown as JsxElement);
+  },
+});
+
+/**
+ * 記事を評価して MDX ブロックを返す．
+ */
+export const evaluateArticle = async (mdxPath: string): Promise<MdxResult> => {
+  const content = readFileSync(mdxPath, "utf-8");
+  const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  const fm = fmMatch?.[1] ?? "";
+  const autoFormat = !/^\s*auto-format\s*:\s*false\s*$/m.test(fm);
+
+  // 本文評価前に，同じ MDX パーサーで YAML の引用符や複数行文字列を解釈する．
+  const { frontmatter } = await evaluateMdxString(fmMatch?.[0] ?? "");
+  const author =
+    typeof frontmatter.author === "string" ? frontmatter.author : "";
+  const authorDetail = frontmatter["author-detail"];
+  const authorName =
+    author && typeof authorDetail === "string" && authorDetail
+      ? `${author}（${authorDetail}）`
+      : author;
+  const authorImage =
+    typeof frontmatter["author-image"] === "string"
+      ? frontmatter["author-image"]
+      : undefined;
+
+  // 記事ディレクトリの components.tsx / .ts を自動ロードしてコンポーネント登録する．
+  // この import() は ssrLoadModule 経由で実行されるため Vite のトランスフォームが適用される．
+  const articleDir = path.dirname(mdxPath);
+  let articleComponents: Record<string, unknown> = {};
+  for (const ext of ["tsx", "ts"]) {
+    const compPath = path.join(articleDir, `components.${ext}`);
+    if (existsSync(compPath)) {
+      try {
+        articleComponents = await import(/* @vite-ignore */ compPath);
+      } catch (e) {
+        console.error(`Failed to load ${compPath}:`, e);
+      }
+      break;
+    }
+  }
+
+  // frontmatter の著者情報を AuthorProfile のデフォルト値として注入
+  const AuthorProfileWithDefaults = (props: AuthorProfileProps) =>
+    sharedComponents.AuthorProfile({
+      ...props,
+      name: props.name ?? authorName,
+      image: props.image ?? authorImage,
+    });
+
+  const preprocessors = [
+    preprocessCodeFenceInfo,
+    preprocessCaption,
+    preprocessAutoUrls,
+    preprocessParentheses,
+    preprocessQuotes,
+    preprocessApostrophes,
+  ];
+  const preprocessed = preprocessors.reduce((s, fn) => fn(s), content);
+  return evaluateMdxString(preprocessed, {
+    baseUrl: new URL(`file://${path.resolve(mdxPath)}`),
+    // 記事中の画像パスはプロジェクトルートからの相対パスで記述している
+    resolveAsset: (src) => path.resolve(src),
+    components: {
+      ...createMdxComponents(autoFormat),
+      ...sharedComponents,
+      AuthorProfile: AuthorProfileWithDefaults,
+      ...articleComponents,
+    },
+  });
+};
+
+// ------
+// 組版処理
+// ------
+
+/**
+ * frontmatter から必須フィールドを取り出し，未定義なら例外を投げる．
+ */
+export const extractFrontmatter = (
+  frontmatter: MdxResult["frontmatter"],
+  mdxPath: string,
+): {
+  title: string;
+  titleToc?: string;
+  titleTobira?: string;
+  author?: string;
+  authorDetail: string | undefined;
+  topSpace: number | undefined;
+} => {
+  const title = frontmatter.title;
+  if (typeof title !== "string" || !title) {
+    throw new Error(`Missing or invalid "title" in frontmatter: ${mdxPath}`);
+  }
+  const author = frontmatter.author;
+  const authorDetail = frontmatter["author-detail"];
+  const rawTopSpace = frontmatter["heading-top-space"];
+  return {
+    title,
+    ...Object.fromEntries(
+      ["toc", "tobira"].map((kind) => {
+        const value = frontmatter[`title-${kind}`];
+        if (value !== undefined && (typeof value !== "string" || !value)) {
+          throw new Error(`Invalid "title-${kind}" in frontmatter: ${mdxPath}`);
+        }
+        return [`title${kind[0].toUpperCase()}${kind.slice(1)}`, value];
+      }),
+    ),
+    author: typeof author === "string" && author ? author : undefined,
+    authorDetail: typeof authorDetail === "string" ? authorDetail : undefined,
+    topSpace: typeof rawTopSpace === "number" ? rawTopSpace : undefined,
+  };
+};
+
+// ------
+// 書籍（複数記事）の組版
+// ------
+
+/**
+ * MDX ファイルを評価して {@link ArticleData} を返す．
+ */
+export const loadArticle = async (mdxPath: string): Promise<ArticleData> => {
+  const { blocks, frontmatter } = await evaluateArticle(mdxPath);
+  return { blocks, ...extractFrontmatter(frontmatter, mdxPath) };
+};
+
+/**
+ * frontmatter のみを読み込む（MDX 評価なし）．
+ * 扉など本文不要な場合に使用する．
+ */
+export const loadArticleMeta = (
+  mdxPath: string,
+): Pick<
+  ArticleData,
+  "title" | "titleToc" | "titleTobira" | "author" | "authorDetail"
+> => {
+  const content = readFileSync(mdxPath, "utf-8");
+  const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+  const fm = fmMatch?.[1] ?? "";
+  const titleMatch = fm.match(/^\s*title\s*:\s*(.+)\s*$/m);
+  const authorMatch = fm.match(/^\s*author\s*:\s*(.+)\s*$/m);
+  const authorDetailMatch = fm.match(/^\s*author-detail\s*:\s*(.+)\s*$/m);
+  const title = titleMatch?.[1]?.trim() ?? "";
+  if (!title) {
+    throw new Error(`Missing "title" in frontmatter: ${mdxPath}`);
+  }
+  return {
+    title,
+    ...Object.fromEntries(
+      ["toc", "tobira"].map((kind) => [
+        `title${kind[0].toUpperCase()}${kind.slice(1)}`,
+        fm
+          .match(new RegExp(`^[ \t]*title-${kind}[ \t]*:[ \t]*(.+)$`, "m"))?.[1]
+          ?.trim() || undefined,
+      ]),
+    ),
+    author: authorMatch?.[1]?.trim() || undefined,
+    authorDetail: authorDetailMatch?.[1]?.trim() || undefined,
+  };
+};
+
+/**
+ * 記事のコンポーネントを返す．
+ */
+const compositeArticle = ({
+  blocks,
+  title,
+  author,
+  authorDetail,
+  h1Id,
+  bodyFont,
+  displayNum,
+  topSpace,
+}: ArticleData): JsxElement => {
+  // 著者名（詳細があれば括弧内に追加）
+  const formattedAuthor = authorDetail
+    ? `${author}（${authorDetail}）`
+    : author;
+
+  // 柱では改行指定を取り除く．
+  const pillarTitle = flattenTitle(title);
+
+  const formattedTitle = title
+    .split("\\n")
+    .flatMap((line, i) => (i === 0 ? [line] : [Br(), line]));
+
+  const articleNum = displayNum;
+
+  return (
+    <Group>
+      <ResetLabel />
+
+      {/* 柱（左ページ：タイトル／右ページ：著者名）：通し番号のない記事では非表示 */}
+      {articleNum && (
+        <>
+          <Flow
+            position="pillar"
+            blockOffset={-14}
+            page={(pageIndex) => pageIndex % 2 === 1}
+          >
+            <Flexbox style={{ gap: 4, alignItems: "start" }}>
+              <Box
+                style={{
+                  splitable: false,
+                  inlineSize: 10,
+                  padding: right(10),
+                  border: right(solid(0.4, colors.gray40)),
+                }}
+              >
+                <P
+                  style={{
+                    size: Q(20),
+                    font: gothicFont,
+                    firstIndent: 0,
+                  }}
+                >
+                  {articleNum}
+                </P>
+              </Box>
+              <Box
+                style={{
+                  splitable: false,
+                  inlineSize: fr(1),
+                }}
+              >
+                <P
+                  style={{
+                    size: Q(11),
+                    font: gothicFont,
+                    firstIndent: 0,
+                    blockOffset: -1.4,
+                    space: TEXT_SPACE_HEADTAIL_HALF,
+                  }}
+                >
+                  {pillarTitle}
+                </P>
+              </Box>
+            </Flexbox>
+          </Flow>
+
+          {author && (
+            <Flow
+              position="pillar"
+              blockOffset={-14 + Q(20) - Q(14)}
+              inlineOffset={textWidth - 20}
+              inlineSize={20}
+              page={(pageIndex) => pageIndex % 2 === 0}
+            >
+              <Box
+                style={{
+                  padding: bottom(2),
+                  border: bottom(solid(0.2, colors.gray40)),
+                }}
+              >
+                <P
+                  style={{
+                    size: Q(11),
+                    font: gothicFont,
+                    firstIndent: 0,
+                    align: "right",
+                  }}
+                >
+                  <Command
+                    style={{
+                      padding: right(0),
+                    }}
+                  >
+                    {author}
+                  </Command>
+                </P>
+              </Box>
+            </Flow>
+          )}
+        </>
+      )}
+
+      <Nombre />
+
+      {/** 記事番号 */}
+      {displayNum && (
+        <Flow
+          position="pillar"
+          page={showOnHeading()}
+          inlineOffset={-16}
+          blockOffset={(topSpace ?? 4) - 8}
+          inlineSize={22}
+          zIndex={-1}
+        >
+          <P
+            style={{
+              size: Q(124),
+              lineHeight: em(1),
+              font: articleNumberUltraLightFont,
+              firstIndent: 0,
+            }}
+          >
+            <Command style={{ effects: [fill(cmyk(0, 0, 0, 15))] }}>
+              {displayNum.startsWith("1") && displayNum.length > 1 ? (
+                <>
+                  {displayNum[0]}
+                  <Kern em={-0.1} />
+                  {displayNum.slice(1)}
+                </>
+              ) : (
+                displayNum
+              )}
+            </Command>
+          </P>
+        </Flow>
+      )}
+
+      {/* タイトル，著者名 */}
+      <Vspace space={topSpace ?? 4} />
+      <H1 id={h1Id} style={{ ...(author ? {} : { font: cuteFont }) }}>
+        {formattedTitle}
+      </H1>
+
+      {author && (
+        <P
+          style={{
+            size: Q(16),
+            font: boldFont,
+            firstIndent: 0,
+          }}
+        >
+          {formattedAuthor}
+        </P>
+      )}
+      <Vspace space={8} />
+
+      {/* 本文 */}
+      {bodyFont ? (
+        <Section block={{ paragraph: { font: bodyFont } }}>{blocks}</Section>
+      ) : (
+        blocks
+      )}
+    </Group>
+  );
+};
+
+/**
+ * 奥付ページを組版する（H1 なし，目次登録なし）．
+ */
+const compositeColophon = ({ blocks }: ArticleData): JsxElement => (
+  <Group>{blocks}</Group>
+);
+
+/**
+ * 目次 + 複数記事をビルドする．
+ */
+export const buildBook = (
+  sections: ArticleSection[],
+): ReturnType<typeof minitypeJSX> => {
+  // 全記事をフラットに展開し，ID を付与
+  let articleIndex = 0;
+  let displayIndex = 0;
+  const sectionsWithIds = sections.map((section, sectionIndex) => ({
+    ...section,
+    sectionH1Id: `section-h1-${sectionIndex}`,
+    articles: section.articles.map((article) => ({
+      ...article,
+      h1Id: article.colophon ? undefined : `article-h1-${articleIndex++}`,
+      displayNum:
+        !article.colophon && article.numbered !== false
+          ? String(++displayIndex).padStart(2, "0")
+          : undefined,
+    })),
+  }));
+
+  const compositeSection = createTobiraRenderer();
+
+  // Document の直下にフラットに展開（Group のネストを避ける）
+  const prefaceGroups: JsxElement[] = sectionsWithIds
+    .filter((section) => section.beforeToc)
+    .flatMap((section) =>
+      section.articles.map((article) => compositeArticle(article)),
+    );
+
+  const bodyGroups: JsxElement[] = sectionsWithIds
+    .filter((section) => !section.beforeToc)
+    .flatMap((section) => [
+      ...(section.label ? [compositeSection(section)] : []),
+      ...section.articles.map((article) =>
+        article.colophon
+          ? compositeColophon(article)
+          : compositeArticle(article),
+      ),
+    ]);
+
+  const doc = (
+    <Document style={documentStyle}>
+      {/* モノクロ表紙をページ全面に配置．本文は2ページ目から開始． */}
+      <Group style={{ padding: physical(0) }}>
+        <Flow position="page" inlineSize={pageSizeMm.width}>
+          <Image
+            src="cover/cover-front-gray.pdf"
+            style={{ width: pageSizeMm.width, height: pageSizeMm.height }}
+          />
+        </Flow>
+      </Group>
+      {prefaceGroups}
+      <Toc sections={sectionsWithIds} />
+      {bodyGroups}
+    </Document>
+  );
+  return minitypeJSX(doc, minitypeOptions);
+};
+
+/**
+ * 扉ページのみをビルドする（MDX 評価なし）．
+ */
+export const buildTobira = (
+  sections: ArticleSection[],
+  bleedMm = 0,
+): ReturnType<typeof minitypeJSX> => {
+  let articleIndex = 0;
+  let displayIndex = 0;
+  const sectionsWithIds = sections.map((section, sectionIndex) => ({
+    ...section,
+    sectionH1Id: `section-h1-${sectionIndex}`,
+    articles: section.articles.map((article) => ({
+      ...article,
+      h1Id: article.colophon ? undefined : `article-h1-${articleIndex++}`,
+      displayNum:
+        !article.colophon && article.numbered !== false
+          ? String(++displayIndex).padStart(2, "0")
+          : undefined,
+    })),
+  }));
+
+  const compositeSection = createTobiraRenderer(bleedMm);
+  const tobiraGroups = sectionsWithIds
+    .filter((s) => !s.beforeToc && s.label)
+    .map((s) => compositeSection(s));
+
+  const doc = (
+    <Document
+      style={{
+        ...documentStyle,
+        size: {
+          width: pageSizeMm.width + bleedMm * 2,
+          height: pageSizeMm.height + bleedMm * 2,
+        },
+      }}
+    >
+      {tobiraGroups}
+    </Document>
+  );
+  return minitypeJSX(doc, minitypeOptions);
+};
+
+/**
+ * 記事をビルドする．
+ */
+export const buildArticle = ({
+  blocks,
+  title,
+  author,
+  authorDetail,
+  bodyFont,
+  topSpace,
+  colophon,
+  displayNum,
+}: ArticleData): ReturnType<typeof minitypeJSX> => {
+  const group = colophon
+    ? compositeColophon({
+        blocks,
+        title,
+        author,
+        authorDetail,
+        bodyFont,
+        topSpace,
+        colophon,
+        displayNum,
+      })
+    : compositeArticle({
+        blocks,
+        title,
+        author,
+        authorDetail,
+        bodyFont,
+        topSpace,
+        displayNum,
+      });
+  const doc = <Document style={documentStyle}>{group}</Document>;
+  return minitypeJSX(doc, minitypeOptions);
+};

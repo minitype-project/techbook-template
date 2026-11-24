@@ -1,7 +1,25 @@
 {
   "name": "techbook-template",
   "version": "0.1.0",
-  "private": true,
+  "description": "Techbook template using minitype",
+  "author": "Yuto Wada",
+  "license": "MIT",
+  "homepage": "https://github.com/minitype-project/techbook-template",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/minitype-project/techbook-template.git"
+  },
+  "bugs": {
+    "url": "https://github.com/minitype-project/techbook-template/issues"
+  },
+  "keywords": [
+    "minitype",
+    "typesetting",
+    "technical book",
+    "jsx",
+    "markdown",
+    "pdf"
+  ],
   "type": "module",
   "scripts": {
     "dev": "tsx scripts/dev.ts",
@@ -12,8 +30,9 @@
     "build:tobira-padding": "BUILD_TOBIRA_PADDING=1 tsx scripts/build.ts",
     "sample": "tsx scripts/generate-sample.ts",
     "diff-pdf": "tsx scripts/diff-pdf.ts",
-    "check": "biome check",
-    "test": "vitest run"
+    "format": "biome check --write",
+    "test": "vitest run",
+    "prepare": "husky"
   },
   "dependencies": {
     "@minitype/minitype": "^0.2.0",
@@ -23,8 +42,11 @@
     "@biomejs/biome": "^2.6.9",
     "@biomejs/js-api": "^6.1.0",
     "@biomejs/wasm-nodejs": "^2.6.9",
+    "@commitlint/cli": "^21.2.4",
+    "@commitlint/config-conventional": "^21.2.4",
     "@minitype/vite-plugin": "^0.3.0",
     "@types/node": "^26.6.6",
+    "husky": "^9.1.7",
     "tsx": "~4.23.15",
     "typescript": "^7.0.2",
     "vite": "^8.3.8",
