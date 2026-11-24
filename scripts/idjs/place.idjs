@@ -1,0 +1,121 @@
+const { app, PDFCrop, LocationOptions } = require("indesign");
+const fs = require("uxp").storage.localFileSystem;
+
+async function main() {
+  if (app.documents.length === 0) {
+    throw new Error("InDesign のドキュメントを開いてください．");
+  }
+
+  const doc = app.activeDocument;
+
+  // PDF ファイルを選択
+  const file = await fs.getFileForOpening({
+    types: ["pdf"],
+  });
+  if (!file) {
+    return;
+  }
+
+  // 開始ページ番号を入力
+  const dialog = app.dialogs.add({
+    name: "PDF を配置",
+    canCancel: true,
+  });
+
+  const col = dialog.dialogColumns.add();
+  col.staticTexts.add({
+    staticLabel: "InDesign 側の開始ページ番号（1始まり）",
+  });
+  const inputIdPage = col.integerEditboxes.add({
+    editValue: 1,
+    minimumValue: 1,
+    maximumValue: 99999,
+  });
+  col.staticTexts.add({
+    staticLabel: "PDF 側の開始ページ番号（1始まり）",
+  });
+  const inputPdfPage = col.integerEditboxes.add({
+    editValue: 1,
+    minimumValue: 1,
+    maximumValue: 99999,
+  });
+
+  let startPage, pdfStartPage;
+  try {
+    if (!dialog.show()) {
+      return;
+    }
+    startPage = inputIdPage.editValue;
+    pdfStartPage = inputPdfPage.editValue;
+  } finally {
+    dialog.destroy();
+  }
+
+  // PDF配置設定を保存
+  const prefs = app.pdfPlacePreferences;
+  const originalPage = prefs.pageNumber;
+  const originalCrop = prefs.pdfCrop;
+
+  let count = 0;
+
+  try {
+    prefs.pdfCrop = PDFCrop.CROP_MEDIA;
+
+    for (let pdfPage = pdfStartPage; pdfPage <= 10000; pdfPage++) {
+      const pageIndex = startPage - 1 + count;
+
+      // ページが不足していれば追加
+      let addedPage = false;
+      if (pageIndex >= doc.pages.length) {
+        doc.pages.add(LocationOptions.AT_END);
+        addedPage = true;
+      }
+
+      const page = doc.pages.item(pageIndex);
+      prefs.pageNumber = pdfPage;
+
+      // ページ左上の座標 [x, y]
+
+      // PDF を配置
+      const placed = page.place(file, [0, 0]);
+      const graphic = placed[0];
+
+      // PDF 末尾を超えるとページ番号が先頭（pdfStartPage）に戻る
+      const actualPage = graphic.pdfAttributes.pageNumber;
+
+      if (actualPage !== pdfPage) {
+        // 余分に配置したPDFを削除
+        graphic.parent.remove();
+
+        // 追加した余分なページも削除
+        if (addedPage) {
+          page.remove();
+        }
+        break;
+      }
+
+      count++;
+    }
+  } finally {
+    // 設定を元に戻す
+    prefs.pageNumber = originalPage;
+    prefs.pdfCrop = originalCrop;
+  }
+
+  console.log(`${count} ページ配置しました．`);
+}
+
+try {
+  await main();
+} catch (error) {
+  console.error("PDF 配置エラー:", error);
+  const dialog = app.dialogs.add({
+    name: "PDF 配置エラー",
+    canCancel: false,
+  });
+  dialog.dialogColumns.add().staticTexts.add({
+    staticLabel: String(error),
+  });
+  dialog.show();
+  dialog.destroy();
+}

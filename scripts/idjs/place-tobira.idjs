@@ -1,0 +1,130 @@
+const {
+  app, PDFCrop, RulerOrigin, MeasurementUnits, PageSideOptions,
+} = require("indesign");
+const fs = require("uxp").storage.localFileSystem;
+
+// data/indd/body.pdf（186ページ）で確認した物理ページ番号（1始まり）．
+// 本扉を含む4か所．本文を再生成して改ページが変わった場合は更新する．
+const placements = [
+  { page: 1, file: "cover/cover-front-gray-print.pdf", pdfPage: 1 },
+  { page: 10, file: "data/indd/tobira-padding.pdf", pdfPage: 1 },
+  { page: 62, file: "data/indd/tobira-padding.pdf", pdfPage: 2 },
+  { page: 131, file: "data/indd/tobira-padding.pdf", pdfPage: 3 },
+];
+
+async function main() {
+  if (app.documents.length === 0) {
+    throw new Error("InDesign のドキュメントを開いてください．");
+  }
+  const doc = app.activeDocument;
+  if (doc.pages.length < 131) {
+    throw new Error(
+      "配置先の p131 がありません．本文を配置した文書を開いてください．",
+    );
+  }
+
+  // このスクリプトは対象ページ上の既存PDFフレームを置換する．
+  const root = await fs.getEntryWithUrl(
+    "file:///Users/yuto/Documents/tsukuba/tech-book2",
+  );
+  const files = new Map();
+  for (const { file } of placements) {
+    if (!files.has(file)) {
+      files.set(file, await root.getEntry(file));
+    }
+  }
+
+  const prefs = app.pdfPlacePreferences;
+  const view = doc.viewPreferences;
+  const original = {
+    pageNumber: prefs.pageNumber,
+    pdfCrop: prefs.pdfCrop,
+    horizontal: view.horizontalMeasurementUnits,
+    vertical: view.verticalMeasurementUnits,
+    rulerOrigin: view.rulerOrigin,
+    zeroPoint: doc.zeroPoint,
+  };
+
+  try {
+    view.horizontalMeasurementUnits = MeasurementUnits.MILLIMETERS;
+    view.verticalMeasurementUnits = MeasurementUnits.MILLIMETERS;
+    view.rulerOrigin = RulerOrigin.PAGE_ORIGIN;
+    doc.zeroPoint = [0, 0];
+    // TrimBoxで切り落とさず，塗り足しを含む用紙全体を等倍配置．
+    prefs.pdfCrop = PDFCrop.CROP_MEDIA;
+
+    for (const { page: pageNumber, file, pdfPage } of placements) {
+      const page = doc.pages.item(pageNumber - 1);
+      const oldFrames = [];
+      for (const graphic of page.allGraphics) {
+        // UXPのDOMオブジェクトはconstructor.nameで判別できない場合がある．
+        // PDF固有の属性を読めるかどうかで判定する．
+        let isPdf = false;
+        try {
+          isPdf = graphic.pdfAttributes.pageNumber > 0;
+        } catch {
+          // 画像など，PDF以外のグラフィックは残す．
+        }
+        if (isPdf) {
+          const frame = graphic.parent;
+          if (!oldFrames.some((item) => item.id === frame.id)) {
+            oldFrames.push(frame);
+          }
+        }
+      }
+      // 配置成功を確認してから，置換対象のPDFフレームを削除する．
+      prefs.pageNumber = pdfPage;
+      const graphic = page.place(files.get(file), [-3, -3])[0];
+      try {
+        if (graphic.pdfAttributes.pageNumber !== pdfPage) {
+          throw new Error(`${file} に PDF p${pdfPage} がありません．`);
+        }
+        // 1ページ目はそのまま．それ以外はノド側の 3 mmだけ隠す．
+        if (pageNumber !== 1) {
+          const newFrame = graphic.parent;
+          newFrame.frameFittingOptions.autoFit = false;
+          const bounds = newFrame.geometricBounds;
+          // UXPの列挙値はオブジェクトとして返るため，数値で比較する．
+          const side = Number(page.side);
+          if (side === Number(PageSideOptions.LEFT_HAND)) {
+            bounds[3] -= 3;
+          } else if (side === Number(PageSideOptions.RIGHT_HAND)) {
+            bounds[1] += 3;
+          }
+          newFrame.geometricBounds = bounds;
+        }
+        for (const frame of oldFrames) {
+          frame.remove();
+        }
+        console.log(`p${pageNumber}: 既存PDFを${oldFrames.length}件削除`);
+      } catch (error) {
+        graphic.parent.remove();
+        throw error;
+      }
+      console.log(
+        `p${pageNumber}: ${file} の p${pdfPage} を (-3 mm, -3 mm) に配置`,
+      );
+    }
+  } finally {
+    prefs.pageNumber = original.pageNumber;
+    prefs.pdfCrop = original.pdfCrop;
+    view.rulerOrigin = original.rulerOrigin;
+    doc.zeroPoint = original.zeroPoint;
+    view.horizontalMeasurementUnits = original.horizontal;
+    view.verticalMeasurementUnits = original.vertical;
+  }
+  console.log("本扉・扉の4か所を置換しました．");
+}
+
+try {
+  await main();
+} catch (error) {
+  console.error("扉の配置エラー:", error);
+  const dialog = app.dialogs.add({ name: "扉の配置エラー", canCancel: false });
+  try {
+    dialog.dialogColumns.add().staticTexts.add({ staticLabel: String(error) });
+    dialog.show();
+  } finally {
+    dialog.destroy();
+  }
+}

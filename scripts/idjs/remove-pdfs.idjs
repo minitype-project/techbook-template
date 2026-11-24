@@ -1,0 +1,57 @@
+const { app } = require("indesign");
+
+function showMessage(message) {
+  const dialog = app.dialogs.add({ name: "全ページのオブジェクトを削除", canCancel: false });
+  try {
+    dialog.dialogColumns.add().staticTexts.add({ staticLabel: message });
+    dialog.show();
+  } finally {
+    dialog.destroy();
+  }
+}
+
+// 全通常ページのオブジェクトを種類に関係なく削除する．
+// 親ページ・ペーストボードは対象外．ロック等で失敗したものは報告する．
+function main() {
+  if (app.documents.length === 0) {
+    throw new Error("InDesign のドキュメントを開いてください．");
+  }
+  const doc = app.activeDocument;
+  // 削除前に対象を集めてコレクションの変化による取りこぼしを防止
+  const targets = new Map();
+  for (let pageIndex = 0; pageIndex < doc.pages.length; pageIndex++) {
+    const items = doc.pages.item(pageIndex).pageItems;
+    for (let i = 0; i < items.length; i++) {
+      const item = items.item(i);
+      targets.set(item.id, item);
+    }
+  }
+
+  let removed = 0;
+  let failed = 0;
+  for (const item of targets.values()) {
+    try {
+      if (!item.isValid) {
+        continue;
+      }
+      item.remove();
+      removed++;
+    } catch (error) {
+      failed++;
+      console.error("オブジェクトの削除に失敗:", error);
+    }
+  }
+  showMessage(
+    `オブジェクトを ${removed} 件削除しました．` +
+      (failed > 0
+        ? ` 削除失敗: ${failed} 件（レイヤやオブジェクトのロック等を確認してください）．`
+        : ""),
+  );
+}
+
+try {
+  main();
+} catch (error) {
+  console.error("オブジェクト削除エラー:", error);
+  showMessage(String(error));
+}
