@@ -60,19 +60,12 @@ import {
   gothicFont,
 } from "./styles/fonts.js";
 import { documentStyle, pageSizeMm, textWidth } from "./styles/style.js";
-import { createTobiraRenderer } from "./tobira.js";
+import { Tobira } from "./tobira.js";
 import { Toc } from "./toc.js";
 import { formatCode } from "./utils/format-code.js";
 import { grayscaleImageTransformer } from "./utils/grayscale.js";
 import { Nombre } from "./utils/nombre.js";
-import {
-  extractPosition,
-  preprocessApostrophes,
-  preprocessAutoUrls,
-  preprocessCaption,
-  preprocessParentheses,
-  preprocessQuotes,
-} from "./utils/preprocess.js";
+import { parseCaption, preprocess } from "./utils/preprocess.js";
 import { flattenTitle } from "./utils/title.js";
 
 const fontDir = fileURLToPath(new URL("../fonts", import.meta.url));
@@ -225,12 +218,7 @@ const createMdxComponents = (autoFormat: boolean) => {
       const lang = isMdxCode(children) ? (children.lang ?? "") : "";
       // @minitype/tsx が `ts:キャプション` の `:` 以降を meta に移す
       const meta = isMdxCode(children) ? (children.meta ?? "") : "";
-      const { rest: captionRest, position } = extractPosition(meta);
-      const hashIdx = captionRest.lastIndexOf("#");
-      const caption =
-        hashIdx >= 0 ? captionRest.slice(0, hashIdx).trim() : captionRest;
-      const codeLabel =
-        hashIdx >= 0 ? captionRest.slice(hashIdx + 1) || undefined : undefined;
+      const { caption, label: codeLabel, position } = parseCaption(meta);
       const content =
         autoFormat && lang ? formatCode(rawContent, lang) : rawContent;
       const code = Code({
@@ -272,11 +260,7 @@ const createMdxComponents = (autoFormat: boolean) => {
       const rawRatio = params.get("ratio");
       const ratioValue = rawRatio ? parseFloat(rawRatio) : 1.0;
       const altStr = typeof alt === "string" ? alt : "";
-      const { rest: altRest, position } = extractPosition(altStr);
-      const hashIdx = altRest.lastIndexOf("#");
-      const caption = hashIdx >= 0 ? altRest.slice(0, hashIdx) : altRest;
-      const figLabel =
-        hashIdx >= 0 ? altRest.slice(hashIdx + 1) || undefined : undefined;
+      const { caption, label: figLabel, position } = parseCaption(altStr);
       const fig =
         caption.length > 0
           ? Figure({
@@ -350,18 +334,7 @@ export const evaluateArticle = async (mdxPath: string): Promise<MdxResult> => {
           : authorImage,
     });
 
-  const preprocessors = [
-    preprocessCaption,
-    preprocessAutoUrls,
-    preprocessParentheses,
-    preprocessQuotes,
-    preprocessApostrophes,
-  ];
-  const preprocessed = preprocessors.reduce(
-    (source, preprocess) => preprocess(source),
-    content,
-  );
-  return evaluateMdxString(preprocessed, {
+  return evaluateMdxString(preprocess(content), {
     baseUrl: new URL(`file://${path.resolve(mdxPath)}`),
     resolveAsset: resolveArticleAsset,
     components: {
@@ -649,17 +622,19 @@ const compositeColophon = ({ blocks }: ArticleData): JsxElement => {
 };
 
 /**
- * 目次 + 複数記事をビルドする．
+ * セクションと記事に，リンク用の ID，表示用通し番号，部扉の番号を付与する．
  */
-export const buildBook = (
-  sections: ArticleSection[],
-): ReturnType<typeof minitypeJSX> => {
-  // 全記事をフラットに展開し，ID を付与
+const assignIds = <Article extends ArticleMeta>(
+  sections: ArticleSection<Article>[],
+) => {
   let articleIndex = 0;
   let displayIndex = 0;
-  const sectionsWithIds = sections.map((section, sectionIndex) => ({
+  let partNo = 0;
+  return sections.map((section, sectionIndex) => ({
     ...section,
     sectionH1Id: `section-h1-${sectionIndex}`,
+    // 部扉は目次より後にあり，ラベルを持つセクションにのみ置く
+    partNo: !section.beforeToc && section.label ? ++partNo : undefined,
     articles: section.articles.map((article) => ({
       ...article,
       h1Id: article.colophon ? undefined : `article-h1-${articleIndex++}`,
@@ -669,8 +644,15 @@ export const buildBook = (
           : undefined,
     })),
   }));
+};
 
-  const compositeSection = createTobiraRenderer();
+/**
+ * 目次 + 複数記事をビルドする．
+ */
+export const buildBook = (
+  sections: ArticleSection[],
+): ReturnType<typeof minitypeJSX> => {
+  const sectionsWithIds = assignIds(sections);
 
   // Document の直下にフラットに展開（Group のネストを避ける）
   const prefaceGroups: JsxElement[] = sectionsWithIds
@@ -682,7 +664,9 @@ export const buildBook = (
   const bodyGroups: JsxElement[] = sectionsWithIds
     .filter((section) => !section.beforeToc)
     .flatMap((section) => [
-      ...(section.label ? [compositeSection(section)] : []),
+      ...(section.partNo !== undefined
+        ? [<Tobira section={section} partNo={section.partNo} />]
+        : []),
       ...section.articles.map((article) =>
         article.colophon
           ? compositeColophon(article)
@@ -716,25 +700,13 @@ export const buildTobira = (
   sections: ArticleSection<ArticleMeta>[],
   bleedMm = 0,
 ): ReturnType<typeof minitypeJSX> => {
-  let articleIndex = 0;
-  let displayIndex = 0;
-  const sectionsWithIds = sections.map((section, sectionIndex) => ({
-    ...section,
-    sectionH1Id: `section-h1-${sectionIndex}`,
-    articles: section.articles.map((article) => ({
-      ...article,
-      h1Id: article.colophon ? undefined : `article-h1-${articleIndex++}`,
-      displayNum:
-        !article.colophon && article.numbered !== false
-          ? String(++displayIndex).padStart(2, "0")
-          : undefined,
-    })),
-  }));
+  const sectionsWithIds = assignIds(sections);
 
-  const compositeSection = createTobiraRenderer(bleedMm);
-  const tobiraGroups = sectionsWithIds
-    .filter((section) => !section.beforeToc && section.label)
-    .map((section) => compositeSection(section));
+  const tobiraGroups = sectionsWithIds.flatMap((section) =>
+    section.partNo !== undefined
+      ? [<Tobira section={section} partNo={section.partNo} bleedMm={bleedMm} />]
+      : [],
+  );
 
   const doc = (
     <Document

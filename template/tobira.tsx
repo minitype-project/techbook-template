@@ -1,4 +1,5 @@
 import {
+  type Color,
   em,
   fill,
   fr,
@@ -48,80 +49,228 @@ export interface TobiraSection {
   articles: TobiraArticle[];
 }
 
+interface TobiraProps {
+  section: TobiraSection;
+  /** 部の番号（PART n）． */
+  partNo: number;
+  /**
+   * 各辺の塗り足し（mm）．
+   * @default 0
+   */
+  bleedMm?: number;
+}
+
+// ------
+// レイアウト
+// ------
+
 /**
- * マージン．
+ * 版面のマージン（mm）．
  */
 const MARGIN = { x: 22, top: 24, bottom: 22 };
 
+/**
+ * 白い枠のページ端からの距離（mm）．
+ */
+const FRAME_INSET = 12;
+
+/**
+ * 白い枠の角丸の半径（mm）．
+ */
+const FRAME_RADIUS = 8;
+
+/**
+ * 記事一覧の幅（mm）．
+ */
 const LIST_WIDTH = 144;
 
 /**
- * 記事名のフォントサイズ．
+ * 記事名のフォントサイズ（mm）．
  */
 const TITLE_MM = Q(20);
 
 /**
- * 記事名の 1 行の高さ．
+ * 記事名の行送り（em）．
  */
-const LINE_MM = TITLE_MM * 1.5;
+const TITLE_LINE_HEIGHT = 1.5;
 
 /**
- * 著者名のフォントサイズ．
+ * 記事名の行送り（mm）．
+ */
+const LINE_MM = TITLE_MM * TITLE_LINE_HEIGHT;
+
+/**
+ * 著者名のフォントサイズ（mm）．
  */
 const AUTHOR_MM = Q(16);
 
-// 番号の大きさ = 記事名 2 行分（上端は 1 行目の字の上端，下端は 2 行目の文字の底）
+/**
+ * 番号のフォントサイズ（mm）．
+ * 上端が記事名の 1 行目の字の上端，下端が 2 行目の字の底に揃う大きさ．
+ */
 const NUM_MM = TITLE_MM * 3.22;
-// 番号の列の幅
+
+/**
+ * 番号の列の幅（mm）．
+ */
 const NUM_COL_MM = NUM_MM * 1.4;
-const ENTRY_GAP_MM = TITLE_MM * 1.0;
+
+/**
+ * 記事間の間隔（mm）．
+ */
+const ENTRY_GAP_MM = TITLE_MM;
+
+/**
+ * 記事名と著者名の間隔（mm）．
+ */
+const TITLE_AUTHOR_GAP_MM = 0.5;
+
+/**
+ * 1 件の高さ（mm）．記事名が 2 行ある場合に合わせて固定する．
+ * 記事名が 1 行の項目も同じ枠に入れるので，どの部の扉でも一覧の上端と各項目の位置が揃う（記事名は 2 行に収まる前提）．
+ */
+const ENTRY_MM = 2 * LINE_MM + 1.3 + AUTHOR_MM * 1.5 + ENTRY_GAP_MM;
 
 // TODO: ページ番号の有無の比較用．TOBIRA_PAGES=1 で，記事名の最後の行から点線でページ番号へつなぐ
 const WITH_PAGES = !!process.env.TOBIRA_PAGES;
 
-// 1 件の高さは，記事名が 2 行ある場合に合わせて固定する．記事名が 1 行の項目も同じ枠に入れるので，
-// どの部の扉でも，一覧の上端と各項目の位置が同じになる（記事名は 2 行に収まる前提）
-const ENTRY_MM = 2 * LINE_MM + 1.3 + AUTHOR_MM * 1.5 + ENTRY_GAP_MM;
+// ------
+// コンポーネント
+// ------
 
 /**
- * セクション扉ページを組版する関数を返す．
- * PART 番号は返り値の関数が呼ばれるたびにインクリメントされる．
+ * 文字列の配列を，間に改行を挟んで連結する．
  */
-export const createTobiraRenderer = (
+const joinWithBr = (lines: string[]): (string | JsxElement)[] => {
+  return lines.flatMap((line, i) => (i === 0 ? [line] : [<Br />, line]));
+};
+
+/**
+ * ページ全体を基準に塗りの矩形を配置する．
+ */
+const PageRect = ({
+  offset,
+  width,
+  height,
+  color,
+  borderRadius,
+  zIndex,
+}: {
+  offset: number;
+  width: number;
+  height: number;
+  color: Color;
+  borderRadius?: number;
+  zIndex: number;
+}): JsxElement => {
+  return (
+    <Flow
+      position="page"
+      inlineOffset={offset}
+      blockOffset={offset}
+      inlineSize={width}
+      zIndex={zIndex}
+    >
+      <Rect
+        width={width}
+        height={height}
+        style={{ background: [fill(color)], borderRadius }}
+      />
+    </Flow>
+  );
+};
+
+/**
+ * 一覧の 1 件（番号，記事名，著者名）を組版する．
+ */
+const TobiraEntry = ({ article }: { article: TobiraArticle }): JsxElement => {
+  const title = article.titleTobira ?? flattenTitle(article.title);
+
+  return (
+    <Box style={{ splitable: false, blockSize: ENTRY_MM }}>
+      <Flexbox style={{ gap: 0, alignItems: "start" }}>
+        <Box style={{ splitable: false, inlineSize: NUM_COL_MM }}>
+          {/* 番号の上端を記事名の 1 行目の字の上端に合わせる */}
+          <Move blockOffset={-TITLE_MM * 0.6}>
+            <P
+              style={{
+                size: NUM_MM,
+                lineHeight: em(1),
+                font: articleNumberFont,
+                firstIndent: 0,
+              }}
+            >
+              <Command style={{ effects: [fill(colors.gray40)] }}>
+                {article.displayNum ?? ""}
+              </Command>
+            </P>
+          </Move>
+        </Box>
+        <Box style={{ splitable: false, inlineSize: fr(1) }}>
+          <P
+            style={{
+              size: TITLE_MM,
+              lineHeight: em(TITLE_LINE_HEIGHT),
+              font: boldFont,
+              firstIndent: 0,
+              space: TEXT_SPACE_HEADTAIL_HALF,
+            }}
+          >
+            <Command
+              link={
+                article.h1Id
+                  ? { type: "destination", destination: article.h1Id }
+                  : undefined
+              }
+            >
+              {joinWithBr(title.split("\\n"))}
+            </Command>
+            {WITH_PAGES && hbox(fr(1), "…")}
+            {WITH_PAGES && article.h1Id ? pageref(article.h1Id) : ""}
+          </P>
+          <Vspace space={TITLE_AUTHOR_GAP_MM} />
+          <P style={{ size: AUTHOR_MM, font: gothicFont, firstIndent: 0 }}>
+            {article.author ?? ""}
+          </P>
+        </Box>
+      </Flexbox>
+    </Box>
+  );
+};
+
+/**
+ * 部扉ページを組版する．
+ */
+export const Tobira = ({
+  section,
+  partNo,
   bleedMm = 0,
-): ((section: TobiraSection) => JsxElement) => {
-  let partNo = 0;
+}: TobiraProps): JsxElement => {
+  // 一覧は下端を版面の下マージンに揃える
+  const listTop =
+    pageSizeMm.height -
+    MARGIN.bottom -
+    section.articles.length * ENTRY_MM +
+    ENTRY_GAP_MM;
 
-  return (section: TobiraSection): JsxElement => (
+  return (
     <Group style={{ padding: physical(0) }}>
-      <Flow
-        position="page"
-        inlineSize={pageSizeMm.width + 2 * bleedMm}
+      {/* 背景（塗り足しまで）と白い枠 */}
+      <PageRect
+        offset={0}
+        width={pageSizeMm.width + 2 * bleedMm}
+        height={pageSizeMm.height + 2 * bleedMm}
+        color={colors.gray15}
         zIndex={-3}
-      >
-        <Rect
-          width={pageSizeMm.width + 2 * bleedMm}
-          height={pageSizeMm.height + 2 * bleedMm}
-          style={{ background: [fill(colors.gray15)] }}
-        />
-      </Flow>
-
-      <Flow
-        position="page"
-        inlineOffset={12 + bleedMm}
-        blockOffset={12 + bleedMm}
-        inlineSize={pageSizeMm.width - 24}
+      />
+      <PageRect
+        offset={FRAME_INSET + bleedMm}
+        width={pageSizeMm.width - 2 * FRAME_INSET}
+        height={pageSizeMm.height - 2 * FRAME_INSET}
+        color={colors.white}
+        borderRadius={FRAME_RADIUS}
         zIndex={-2}
-      >
-        <Rect
-          width={pageSizeMm.width - 24}
-          height={pageSizeMm.height - 24}
-          style={{
-            background: [fill(colors.white)],
-            borderRadius: 8,
-          }}
-        />
-      </Flow>
+      />
 
       {/* H1 は通常の版面に残して toc() の収集対象とする */}
       <Move
@@ -130,15 +279,9 @@ export const createTobiraRenderer = (
       >
         <Box style={{ inlineSize: pageSizeMm.width - MARGIN.x * 2 }}>
           <Box style={{ margin: left(0.5) }}>
-            <P
-              style={{
-                firstIndent: 0,
-                font: tobiraPartFont,
-                size: Q(18),
-              }}
-            >
+            <P style={{ firstIndent: 0, font: tobiraPartFont, size: Q(18) }}>
               <Command style={{ effects: [fill(colors.gray65)] }}>
-                PART {++partNo}
+                PART {partNo}
               </Command>
             </P>
           </Box>
@@ -153,9 +296,7 @@ export const createTobiraRenderer = (
             }}
           >
             {/* 長い名前は「・」の後で改行する（「フリースタイル・パソコンの部」） */}
-            {section.label
-              .split(/(?<=・)/)
-              .flatMap((part, i) => (i === 0 ? [part] : [<Br />, part]))}
+            {joinWithBr(section.label.split(/(?<=・)/))}
           </H1>
         </Box>
       </Move>
@@ -163,74 +304,11 @@ export const createTobiraRenderer = (
       <Flow
         position="page"
         inlineOffset={MARGIN.x + bleedMm}
-        blockOffset={
-          pageSizeMm.height +
-          bleedMm -
-          MARGIN.bottom -
-          section.articles.length * ENTRY_MM +
-          ENTRY_GAP_MM
-        }
+        blockOffset={listTop + bleedMm}
         inlineSize={LIST_WIDTH}
       >
         {section.articles.map((article) => (
-          <Box style={{ splitable: false, blockSize: ENTRY_MM }}>
-            <Flexbox style={{ gap: 0, alignItems: "start" }}>
-              <Box style={{ splitable: false, inlineSize: NUM_COL_MM }}>
-                {/* 番号の上端を記事名の 1 行目の字の上端に合わせる */}
-                <Move blockOffset={-TITLE_MM * 0.6}>
-                  <P
-                    style={{
-                      size: Q(NUM_MM * 4),
-                      lineHeight: em(1),
-                      font: articleNumberFont,
-                      firstIndent: 0,
-                    }}
-                  >
-                    <Command style={{ effects: [fill(colors.gray40)] }}>
-                      {article.displayNum ?? ""}
-                    </Command>
-                  </P>
-                </Move>
-              </Box>
-              <Box style={{ splitable: false, inlineSize: fr(1) }}>
-                <P
-                  style={{
-                    size: Q(TITLE_MM * 4),
-                    lineHeight: em(1.5),
-                    font: boldFont,
-                    firstIndent: 0,
-                    space: TEXT_SPACE_HEADTAIL_HALF,
-                  }}
-                >
-                  <Command
-                    link={
-                      article.h1Id
-                        ? { type: "destination", destination: article.h1Id }
-                        : undefined
-                    }
-                  >
-                    {(article.titleTobira ?? flattenTitle(article.title))
-                      .split("\\n")
-                      .flatMap((line, i) =>
-                        i === 0 ? [line] : [<Br />, line],
-                      )}
-                  </Command>
-                  {WITH_PAGES && hbox(fr(1), "…")}
-                  {WITH_PAGES && article.h1Id ? pageref(article.h1Id) : ""}
-                </P>
-                <Vspace space={0.5} />
-                <P
-                  style={{
-                    size: Q(AUTHOR_MM * 4),
-                    font: gothicFont,
-                    firstIndent: 0,
-                  }}
-                >
-                  {article.author ?? ""}
-                </P>
-              </Box>
-            </Flexbox>
-          </Box>
+          <TobiraEntry article={article} />
         ))}
       </Flow>
     </Group>

@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, test } from "vitest";
 import {
-  extractPosition,
+  parseCaption,
+  preprocess,
   preprocessApostrophes,
   preprocessAutoUrls,
   preprocessCaption,
@@ -79,6 +80,19 @@ describe("各種 preprocess", () => {
     assert.equal(actual, `${tag}\n本文（補足）と“引用”`);
   });
 
+  test("preprocess は各前処理を順に適用した結果と一致する", () => {
+    const source =
+      '---\ntitle: "x"\n---\n*表(1)#tab:a*\n| "a" |\n\nit\'s (b) https://example.com\n```\n"c"\n```\n';
+    const expected = [
+      preprocessCaption,
+      preprocessAutoUrls,
+      preprocessParentheses,
+      preprocessQuotes,
+      preprocessApostrophes,
+    ].reduce((text, transform) => transform(text), source);
+    assert.equal(preprocess(source), expected);
+  });
+
   test("脚注定義には適用されるが，参照リンク定義には適用されない", () => {
     const body = 'call("日本語"); // it\'s https://example.com';
     for (const transform of preprocesses) {
@@ -135,17 +149,37 @@ describe("preprocessApostrophes", () => {
   });
 });
 
-describe("extractPosition", () => {
-  test("@t / @b を取り除いて位置を返す", () => {
-    assert.deepEqual(extractPosition("表#tab:foo@t"), {
-      rest: "表#tab:foo",
+describe("parseCaption", () => {
+  test("キャプションをキャプション，ラベル，配置に分解する", () => {
+    assert.deepEqual(parseCaption("表#tab:foo@t"), {
+      caption: "表",
+      label: "tab:foo",
       position: "top",
     });
-    assert.deepEqual(extractPosition("表@b#tab:foo"), {
-      rest: "表#tab:foo",
+    assert.deepEqual(parseCaption("表@b#tab:foo"), {
+      caption: "表",
+      label: "tab:foo",
       position: "bottom",
     });
-    assert.deepEqual(extractPosition("表#tab:foo"), { rest: "表#tab:foo" });
+    assert.deepEqual(parseCaption("表 #tab:foo"), {
+      caption: "表",
+      label: "tab:foo",
+      position: undefined,
+    });
+    assert.deepEqual(parseCaption("表#"), {
+      caption: "表",
+      label: undefined,
+      position: undefined,
+    });
+  });
+
+  test("メールアドレスや単語中の @t / @b は配置指定とみなさない", () => {
+    for (const text of ["foo@bar.com", "@test", "a@t.co"]) {
+      assert.deepEqual(parseCaption(text), {
+        caption: text,
+        position: undefined,
+      });
+    }
   });
 });
 
@@ -276,6 +310,11 @@ describe("preprocessQuotes", () => {
     assert.equal(
       preprocessQuotes('<Foo bar="baz" />と"引用"'),
       '<Foo bar="baz" />と“引用”',
+    );
+    // クォートの内側にタグやインラインコードを含む場合も対にする．
+    assert.equal(
+      preprocessQuotes('"<b>強調</b> と `code`"'),
+      "“<b>強調</b> と `code`”",
     );
   });
 });
