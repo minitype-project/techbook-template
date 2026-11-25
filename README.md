@@ -1,7 +1,7 @@
 # techbook-template
 
-組版エンジン [minitype](https://typeset.jp/) を用いて技術同人誌（B5 判，横組み）を制作するためのテンプレートです．
-Markdown + JSX（MDX）を用いて記事を執筆します．
+組版エンジン [minitype](https://typeset.jp/) を用いて技術同人誌（B5 判，横組）を制作するためのテンプレートです．
+Markdown と JSX を組み合わせた [MDX](https://mdxjs.com/) を用いて記事を執筆します．
 
 ![コンパイルされた文書の例．sample.pdf の 1，2，5 ページ目．](docs/sample-pages.png)
 
