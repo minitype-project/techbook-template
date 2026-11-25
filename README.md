@@ -3,7 +3,7 @@
 組版エンジン [minitype](https://typeset.jp/) を用いて技術同人誌（B5 判，横組み）を制作するためのテンプレートです．
 Markdown + JSX（MDX）を用いて記事を執筆します．
 
-＜図＞
+![コンパイルされた文書の例．sample.pdf の 1，2，5 ページ目．](sample-pages.png)
 
 本テンプレートは，以下の特徴を有します．
 
