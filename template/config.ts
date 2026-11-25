@@ -47,7 +47,7 @@ export const USES_PARTS = false;
 /**
  * オープンソースフォントを使用するかどうか．
  */
-export const USES_OSS_FONTS = false;
+export const USES_OSS_FONTS = true;
 
 /**
  * カラーで出力するかどうか．

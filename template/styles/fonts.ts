@@ -28,6 +28,9 @@ const ossFonts = {
   code: "SourceCodePro-Regular",
   sansMedium: "SourceHanSansJP-Medium",
   sansRegular: "SourceHanSansJP-Regular",
+  interDisplay: "InterDisplay-Regular",
+  interDisplayExtraLight: "InterDisplay-ExtraLight",
+  interDisplayThin: "InterDisplay-Thin",
 } as const;
 
 /**
@@ -150,21 +153,21 @@ export const cuteFont = USES_OSS_FONTS
  * 章番号に使用するフォント．
  */
 export const articleNumberFont = USES_OSS_FONTS
-  ? ossFonts.sansRegular
+  ? ossFonts.interDisplayExtraLight
   : proFonts.helveticaThin;
 
 /**
  * 章番号に使用するフォント．
  */
 export const articleNumberUltraLightFont = USES_OSS_FONTS
-  ? ossFonts.sansRegular
+  ? ossFonts.interDisplayThin
   : proFonts.helveticaUltraLight;
 
 /**
  * 扉の PART 表記に使用するフォント．
  */
 export const tobiraPartFont = USES_OSS_FONTS
-  ? ossFonts.sansRegular
+  ? ossFonts.interDisplay
   : proFonts.helvetica;
 
 /**
