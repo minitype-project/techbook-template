@@ -159,5 +159,7 @@ Copyright (c) 2026 Yuto Wada. This software is released under the MIT License, s
 `fonts/` 配下のフォントに関しては，[SIL Open Font License 1.1](https://openfontlicense.org/) の下で再配布しています．
 詳細なライセンスに関しては，`fonts/LICENSE-*.txt` を参照してください．
 
+本テンプレートが依存する組版エンジン [minitype](https://www.npmjs.com/package/@minitype/minitype) は [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0/) の下で提供されていますが，個人またはサークルによる同人活動を目的とした利用であれば，成果物の頒布が無償・有償のいずれであっても，本テンプレートおよび minitype を無条件に使用できます．
+
 本テンプレートは [驚額の殿堂 技術同人誌『フランクフルト』Vol. 2](https://kyogaku-dendo.booth.pm/items/9039924) の発行に向けて整備されました．
 テンプレートの整備に際してご協力いただいたみなさまに感謝いたします．
