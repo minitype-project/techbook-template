@@ -20,7 +20,7 @@ Markdown + JSX（MDX）を用いて記事を執筆します．
 - **すぐに利用可能**<br />
   Node.js の環境があればすぐに執筆を開始できます．
 
-テンプレートの仕組みや記法に関しては，サンプル記事（[articles/sample/index.mdx](./articles/sample/index.mdx)，PDF：[dist/sample.pdf](./dist/sample.pdf)）で解説しています．
+テンプレートの仕組みや記法に関しては，[サンプル記事](./articles/sample/index.mdx)（PDF：[dist/sample.pdf](./dist/sample.pdf)）で解説しています．
 
 ## クイックスタート
 
@@ -97,7 +97,6 @@ npm run build:tobira-padding
   - ブランチを切って，PR として提出されることを推奨します．
 - サンプル記事（`articles/sample`）を書き方の参考にしてください．
 - MDX の先頭に YAML フロントマターとして以下の内容を記述してください．各項目の詳細はサンプル記事を参照してください．
-
   ```yaml
   ---
   title: 本文の\n記事タイトル（必須）
@@ -110,7 +109,6 @@ npm run build:tobira-padding
   heading-top-space: 4 # 記事タイトル上部の余白（mm）．負の値で上に詰める（任意，既定値：4）
   ---
   ```
-
 - 記事末尾には著者紹介として，著者近影 + 自己紹介を含めることができます．
 - チェックリストとして [docs/checklist.md](./docs/checklist.md) を添付しています．よろしければ参考にしてください．
 
@@ -126,6 +124,7 @@ npm run build:tobira-padding
 | `USES_OSS_FONTS` | プロプライエタリフォントの代わりにオープンソースフォントを使用するかどうか（既定値：true）． |
 | `USES_COLOR` | 文書をカラーで出力するかどうか．false のとき，印刷用にグレースケール（K5% 刻み）で出力するとともに，画像をグレースケールに変換する（既定値：true）． |
 | `USES_ASYMMETRIC_MARGINS` | ノドの余白を広く，小口の余白を狭く設定するかどうか（既定値：false）． |
+| `HONTOBIRA_PDF` | 本扉の PDF のパス（プロジェクトルートからの相対パス）．書籍全体のビルドで 1 ページ目に全面配置する．null のときには本扉を設けず，1 ページ目から目次を開始する（既定値：`"cover/hontobira.pdf"`）． |
 | `bookMetadata` | PDF メタデータに設定する書籍名，発行者名． |
 
 ### フォント

@@ -63,6 +63,13 @@ export const USES_COLOR = true;
 export const USES_ASYMMETRIC_MARGINS = false;
 
 /**
+ * 本扉の PDF のパス（プロジェクトルートからの相対パス）．
+ * 指定すると，書籍全体のビルドで 1 ページ目に全面配置して，目次を 2 ページ目から開始する．
+ * null のとき，本扉を設けずに 1 ページ目から目次を開始する．
+ */
+export const HONTOBIRA_PDF: string | null = "cover/hontobira.pdf";
+
+/**
  * PDF メタデータに設定する書籍情報．
  */
 export const bookMetadata: PdfMetadata = {

@@ -3,35 +3,145 @@ const {
 } = require("indesign");
 const fs = require("uxp").storage.localFileSystem;
 
-// data/indd/body.pdf（186ページ）で確認した物理ページ番号（1始まり）．
-// 本扉を含む4か所．本文を再生成して改ページが変わった場合は更新する．
-const placements = [
-  { page: 1, file: "cover/cover-front-gray-print.pdf", pdfPage: 1 },
-  { page: 10, file: "data/indd/tobira-padding.pdf", pdfPage: 1 },
-  { page: 62, file: "data/indd/tobira-padding.pdf", pdfPage: 2 },
-  { page: 131, file: "data/indd/tobira-padding.pdf", pdfPage: 3 },
-];
+// 前回の入力値をドキュメントに保存するキー
+const LABEL_KEY = "techbook-template:place-tobira";
+
+function loadSettings(doc) {
+  const defaults = {
+    usesHontobira: true,
+    hontobiraPage: 1,
+    usesTobira: true,
+    tobiraPages: "",
+    bleed: 3,
+  };
+  try {
+    const saved = doc.extractLabel(LABEL_KEY);
+    return saved ? { ...defaults, ...JSON.parse(saved) } : defaults;
+  } catch {
+    return defaults;
+  }
+}
+
+// 「10, 62, 131」のような入力を物理ページ番号（1始まり）の配列に変換する．
+function parsePages(text) {
+  const tokens = text.split(/[\s,，、]+/).filter((token) => token !== "");
+  return tokens.map((token) => {
+    if (!/^\d+$/.test(token) || Number(token) < 1) {
+      throw new Error(`部扉のページ番号が不正です：${token}`);
+    }
+    return Number(token);
+  });
+}
+
+// 配置設定をダイアログで入力する．キャンセル時は null を返す．
+function askSettings(doc) {
+  const settings = loadSettings(doc);
+  const dialog = app.dialogs.add({ name: "扉を配置", canCancel: true });
+  try {
+    const col = dialog.dialogColumns.add();
+    col.staticTexts.add({
+      staticLabel: "ページ番号は物理ページ番号（1始まり）で指定してください．",
+    });
+
+    const hontobiraGroup = col.enablingGroups.add({
+      staticLabel: "本扉を配置",
+      checkedState: settings.usesHontobira,
+    });
+    const hontobiraCol = hontobiraGroup.dialogColumns.add();
+    hontobiraCol.staticTexts.add({ staticLabel: "配置先のページ番号" });
+    const inputHontobiraPage = hontobiraCol.integerEditboxes.add({
+      editValue: settings.hontobiraPage,
+      minimumValue: 1,
+      maximumValue: 99999,
+    });
+
+    const tobiraGroup = col.enablingGroups.add({
+      staticLabel: "部扉を配置",
+      checkedState: settings.usesTobira,
+    });
+    const tobiraCol = tobiraGroup.dialogColumns.add();
+    tobiraCol.staticTexts.add({
+      staticLabel: "配置先のページ番号（カンマ区切り．PDF の1ページ目から順に配置）",
+    });
+    const inputTobiraPages = tobiraCol.textEditboxes.add({
+      editContents: settings.tobiraPages,
+      minWidth: 240,
+    });
+
+    col.staticTexts.add({ staticLabel: "部扉のノド側で隠す塗り足し（mm）" });
+    const inputBleed = col.realEditboxes.add({
+      editValue: settings.bleed,
+      minimumValue: 0,
+      maximumValue: 100,
+    });
+
+    col.staticTexts.add({
+      staticLabel: "OK を押すと，本扉 → 部扉の順に PDF の選択画面が開きます．",
+    });
+
+    if (!dialog.show()) {
+      return null;
+    }
+    const result = {
+      usesHontobira: hontobiraGroup.checkedState,
+      hontobiraPage: inputHontobiraPage.editValue,
+      usesTobira: tobiraGroup.checkedState,
+      tobiraPages: inputTobiraPages.editContents,
+      bleed: inputBleed.editValue,
+    };
+    doc.insertLabel(LABEL_KEY, JSON.stringify(result));
+    return result;
+  } finally {
+    dialog.destroy();
+  }
+}
 
 async function main() {
   if (app.documents.length === 0) {
     throw new Error("InDesign のドキュメントを開いてください．");
   }
   const doc = app.activeDocument;
-  if (doc.pages.length < 131) {
+
+  const settings = askSettings(doc);
+  if (!settings) {
+    return;
+  }
+  const tobiraPages = settings.usesTobira
+    ? parsePages(settings.tobiraPages)
+    : [];
+  if (!settings.usesHontobira && tobiraPages.length === 0) {
+    throw new Error("配置する扉がありません．");
+  }
+
+  const lastPage = Math.max(
+    settings.usesHontobira ? settings.hontobiraPage : 0,
+    ...tobiraPages,
+  );
+  if (doc.pages.length < lastPage) {
     throw new Error(
-      "配置先の p131 がありません．本文を配置した文書を開いてください．",
+      `配置先の p${lastPage} がありません．本文を配置した文書を開いてください．`,
     );
   }
 
-  // このスクリプトは対象ページ上の既存PDFフレームを置換する．
-  const root = await fs.getEntryWithUrl(
-    "file:///Users/yuto/Documents/tsukuba/tech-book2",
-  );
-  const files = new Map();
-  for (const { file } of placements) {
-    if (!files.has(file)) {
-      files.set(file, await root.getEntry(file));
+  // isHontobira: 本扉はそのまま，部扉はノド側の塗り足しを隠す
+  const placements = [];
+  if (settings.usesHontobira) {
+    const file = await fs.getFileForOpening({ types: ["pdf"] });
+    if (!file) {
+      return;
     }
+    placements.push({
+      page: settings.hontobiraPage, file, pdfPage: 1, isHontobira: true,
+    });
+  }
+  if (tobiraPages.length > 0) {
+    const file = await fs.getFileForOpening({ types: ["pdf"] });
+    if (!file) {
+      return;
+    }
+    tobiraPages.forEach((page, i) => {
+      placements.push({ page, file, pdfPage: i + 1, isHontobira: false });
+    });
   }
 
   const prefs = app.pdfPlacePreferences;
@@ -53,7 +163,8 @@ async function main() {
     // TrimBoxで切り落とさず，塗り足しを含む用紙全体を等倍配置．
     prefs.pdfCrop = PDFCrop.CROP_MEDIA;
 
-    for (const { page: pageNumber, file, pdfPage } of placements) {
+    const bleed = settings.bleed;
+    for (const { page: pageNumber, file, pdfPage, isHontobira } of placements) {
       const page = doc.pages.item(pageNumber - 1);
       const oldFrames = [];
       for (const graphic of page.allGraphics) {
@@ -74,22 +185,21 @@ async function main() {
       }
       // 配置成功を確認してから，置換対象のPDFフレームを削除する．
       prefs.pageNumber = pdfPage;
-      const graphic = page.place(files.get(file), [-3, -3])[0];
+      const graphic = page.place(file, [-bleed, -bleed])[0];
       try {
         if (graphic.pdfAttributes.pageNumber !== pdfPage) {
-          throw new Error(`${file} に PDF p${pdfPage} がありません．`);
+          throw new Error(`${file.name} に PDF p${pdfPage} がありません．`);
         }
-        // 1ページ目はそのまま．それ以外はノド側の 3 mmだけ隠す．
-        if (pageNumber !== 1) {
+        if (!isHontobira) {
           const newFrame = graphic.parent;
           newFrame.frameFittingOptions.autoFit = false;
           const bounds = newFrame.geometricBounds;
           // UXPの列挙値はオブジェクトとして返るため，数値で比較する．
           const side = Number(page.side);
           if (side === Number(PageSideOptions.LEFT_HAND)) {
-            bounds[3] -= 3;
+            bounds[3] -= bleed;
           } else if (side === Number(PageSideOptions.RIGHT_HAND)) {
-            bounds[1] += 3;
+            bounds[1] += bleed;
           }
           newFrame.geometricBounds = bounds;
         }
@@ -102,7 +212,7 @@ async function main() {
         throw error;
       }
       console.log(
-        `p${pageNumber}: ${file} の p${pdfPage} を (-3 mm, -3 mm) に配置`,
+        `p${pageNumber}: ${file.name} の p${pdfPage} を (-${bleed} mm, -${bleed} mm) に配置`,
       );
     }
   } finally {
@@ -113,7 +223,7 @@ async function main() {
     view.horizontalMeasurementUnits = original.horizontal;
     view.verticalMeasurementUnits = original.vertical;
   }
-  console.log("本扉・扉の4か所を置換しました．");
+  console.log(`扉を${placements.length}か所配置しました．`);
 }
 
 try {

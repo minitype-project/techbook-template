@@ -52,7 +52,7 @@ import {
 } from "@minitype/tsx";
 import type { AuthorProfileProps } from "./components.js";
 import * as sharedComponents from "./components.js";
-import { bookMetadata, USES_COLOR } from "./config.js";
+import { bookMetadata, HONTOBIRA_PDF, USES_COLOR } from "./config.js";
 import { colors } from "./styles/colors.js";
 import {
   articleNumberUltraLightFont,
@@ -681,15 +681,17 @@ export const buildBook = (
 
   const doc = (
     <Document style={documentStyle}>
-      {/* モノクロ表紙をページ全面に配置．本文は2ページ目から開始． */}
-      <Group style={{ padding: physical(0) }}>
-        <Flow position="page" inlineSize={pageSizeMm.width}>
-          <Image
-            src="cover/cover-front-gray.pdf"
-            style={{ width: pageSizeMm.width, height: pageSizeMm.height }}
-          />
-        </Flow>
-      </Group>
+      {/* 本扉をページ全面に配置．本文は2ページ目から開始． */}
+      {HONTOBIRA_PDF !== null && (
+        <Group style={{ padding: physical(0) }}>
+          <Flow position="page" inlineSize={pageSizeMm.width}>
+            <Image
+              src={HONTOBIRA_PDF}
+              style={{ width: pageSizeMm.width, height: pageSizeMm.height }}
+            />
+          </Flow>
+        </Group>
+      )}
       {prefaceGroups}
       <Toc parts={partsWithIds} />
       {bodyGroups}
