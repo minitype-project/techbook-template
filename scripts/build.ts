@@ -21,15 +21,19 @@ import { assertNoMissingGlyphs } from "./diagnostics.js";
 import { articlePath, articlesDir, distDir } from "./paths.js";
 import { extractPages } from "./pdf.js";
 
+// Windows の cmd.exe でも動くように，環境変数ではなくフラグでモードを切り替える
+const args = process.argv.slice(2);
+const flags = new Set(args.filter((arg) => arg.startsWith("--")));
 // npm run dev のときは scripts/dev.ts が環境変数 ARTICLE に記事名を設定する
-const name = process.argv[2] ?? process.env.ARTICLE;
-// BUILD_ALL=1 のとき，articles/ 以下の全記事を個別 PDF としてビルド
-const buildAll = !!process.env.BUILD_ALL;
-// BUILD_TOC=1 のとき，目次のみを dist/toc.pdf としてビルド
-const buildTocOnly = !!process.env.BUILD_TOC;
-// BUILD_TOBIRA=1 のとき，扉ページのみを dist/tobira.pdf としてビルド
-const tobiraBleedMm = process.env.BUILD_TOBIRA_PADDING ? 3 : 0;
-const buildTobiraOnly = !!process.env.BUILD_TOBIRA || tobiraBleedMm > 0;
+const name = args.find((arg) => !arg.startsWith("--")) ?? process.env.ARTICLE;
+// --all のとき，articles/ 以下の全記事を個別 PDF としてビルド
+const buildAll = flags.has("--all");
+// --toc のとき，目次のみを dist/toc.pdf としてビルド
+const buildTocOnly = flags.has("--toc");
+// --tobira のとき，扉ページのみを dist/tobira.pdf としてビルド
+// --tobira-padding のとき，各辺 3 mm の塗り足し付きの扉をビルド
+const tobiraBleedMm = flags.has("--tobira-padding") ? 3 : 0;
+const buildTobiraOnly = flags.has("--tobira") || tobiraBleedMm > 0;
 
 /**
  * 部の一覧に含まれる記事の総数を返す．

@@ -1,0 +1,2 @@
+# Windows（core.autocrlf=true）でも LF で取り出す（MDX の前処理が LF を前提とするため）
+* text=auto eol=lf

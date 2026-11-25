@@ -416,7 +416,7 @@ export const loadArticleMeta = (
   "title" | "titleToc" | "titleTobira" | "author" | "authorDetail"
 > => {
   const content = readFileSync(mdxPath, "utf-8");
-  const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+  const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   const fm = fmMatch?.[1] ?? "";
   const titleMatch = fm.match(/^\s*title\s*:\s*(.+)\s*$/m);
   const authorMatch = fm.match(/^\s*author\s*:\s*(.+)\s*$/m);
