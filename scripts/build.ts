@@ -130,7 +130,11 @@ const buildArticlePdf = async (name: string) => {
   const doc = buildArticle(article);
   await assertNoMissingGlyphs(doc);
   await doc.save(`${distDir}${name}.pdf`);
-  console.log(`Built: dist/${name}.pdf (${article.title} / ${article.author})`);
+  // 著者のいない記事（まえがき，奥付など）ではタイトルのみを表示する
+  const label = article.author
+    ? `${article.title} / ${article.author}`
+    : article.title;
+  console.log(`Built: dist/${name}.pdf (${label})`);
 };
 
 /**
@@ -162,22 +166,32 @@ const buildAllArticlePdfs = async () => {
 };
 
 /**
- * 書籍全体をビルドし，最初の記事が始まるページまでを dist/toc.pdf に出力する．
+ * 書籍全体をビルドし，目次のページのみを dist/toc.pdf に出力する．
  */
 const buildTocPdf = async () => {
   const parts = await loadParts(loadArticle);
   const book = buildBook(parts);
   await assertNoMissingGlyphs(book);
   const layout = await book.getLayout();
+  const findPageIndex = (id: string | undefined) =>
+    layout.find((item) => item.id === id)?.pageIndex;
 
-  // 最初の記事 H1 のページ番号を探す（目次はそのページより前）
-  const firstArticleHeading = layout.find((item) => item.id === "article-h1-0");
-  const tocPageCount = firstArticleHeading?.pageIndex ?? 1;
+  // 目次の直後に来る部扉または記事 H1 の ID（目次より前の部は除く）
+  const firstBodyPart = assignIds(parts).find((part) => !part.beforeToc);
+  const firstBodyId =
+    firstBodyPart?.partNo !== undefined
+      ? firstBodyPart.partH1Id
+      : firstBodyPart?.articles.find((article) => article.h1Id)?.h1Id;
+
+  // 目次見出しのページから，本文が始まるページの手前までを目次とする
+  const tocStart = findPageIndex("toc-heading") ?? 0;
+  const tocEnd = findPageIndex(firstBodyId) ?? tocStart + 1;
+  const tocPageCount = tocEnd - tocStart;
 
   const srcDoc = await PDFDocument.load(await book.toPdf());
   const tocDoc = await extractPages(
     srcDoc,
-    Array.from({ length: tocPageCount }, (_, i) => i),
+    Array.from({ length: tocPageCount }, (_, i) => tocStart + i),
   );
   writeFileSync(`${distDir}toc.pdf`, await tocDoc.save());
   console.log(
