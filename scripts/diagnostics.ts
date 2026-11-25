@@ -3,7 +3,7 @@ import type { Diagnostic } from "@minitype/minitype";
 type Document = { getDiagnostics: () => Promise<Diagnostic[]> };
 
 /**
- * 組版結果に豆腐（グリフの存在しない文字）が含まれる場合，例外を投げる．
+ * 組版結果に豆腐文字（グリフの存在しない文字）が含まれる場合，例外を投げる．
  * dev サーバではプレビューにエラーとして表示される．
  * @param doc minitype の組版結果．
  */

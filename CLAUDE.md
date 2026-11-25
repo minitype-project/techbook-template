@@ -24,8 +24,8 @@
 ## 作業上の注意
 
 - 変更の確認には `npm run build <dirname>` を使ってください．`npm run dev` は開発サーバであるため，エージェントからの確認には向きません．
-  - ビルドは豆腐（グリフの欠落）を検出すると失敗します（`scripts/diagnostics.ts`）．
+  - コンパイルは豆腐文字（グリフの欠落）を検出すると失敗します（`scripts/diagnostics.ts`）．
   - 生成された `dist/<dirname>.pdf` を開いて，組版結果を目視で確認してください．
-- 有償フォントがない環境では，`template/config.ts` の `USES_OSS_FONTS` を一時的に `true` にしてビルドしてください．確認用に変更した `config.ts` のフラグはコミットしないでください．
+- プロプライエタリフォントがインストールされていない環境では，`template/config.ts` の `USES_OSS_FONTS` を一時的に `true` にしてコンパイルしてください．確認用に変更した `config.ts` のフラグはコミットしないでください．
 - `articles/` 以下には複数の著者の記事が置かれています．指示された記事以外は変更しないでください．
 - テンプレート本体を変更した場合は，コミット前に `npm run format` と `npm run test` を実行してください．

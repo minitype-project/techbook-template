@@ -41,6 +41,7 @@ import {
   isMdxCode,
   type JsxElement,
   Kern,
+  MathBlock,
   type MdxResult,
   minitypeJSX,
   P,
@@ -212,6 +213,10 @@ const createMdxComponents = (autoFormat: boolean) => {
     // キャプションに "#label" を含む場合（例：ts:ファイル名.ts#code:hello），label として登録する．
     // label に "@t" / "@b" を付与すると float top / bottom になる（例：#lst:hello@t）
     pre: ({ children }: Record<string, unknown>): JsxElement => {
+      // remark-math の数式ブロック（$$...$$）は MathBlock として出力する
+      if (isMdxCode(children) && children.lang?.includes("math-display")) {
+        return MathBlock({ children: children.content });
+      }
       const rawContent = isMdxCode(children)
         ? children.content
         : String(children ?? "");

@@ -2,11 +2,11 @@ import type { ReferenceRecord } from "@minitype/minitype";
 import { createBibliography } from "../../template/bibliography.js";
 
 const references: ReferenceRecord = {
-  knuth1986: {
+  lamport1994: {
     type: "book",
-    authors: ["Donald E. Knuth"],
-    title: "The TeXbook",
-    year: 1986,
+    authors: ["Leslie Lamport"],
+    title: "LaTeX: A Document Preparation System",
+    year: 1994,
     publisher: "Addison-Wesley",
     address: "Reading, Massachusetts",
   },

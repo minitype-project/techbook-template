@@ -45,13 +45,6 @@ export const articleOrder: { type: PartType; articles: string[] }[] = [
 export const USES_PARTS = false;
 
 /**
- * ノド（内側）と小口（外側）の余白を区別するかどうか．
- * true のとき，ノドの余白が小口の余白より広くなる．
- * false のとき，ノドと小口の余白が均等になる．
- */
-export const USES_ASYMMETRIC_MARGINS = false;
-
-/**
  * オープンソースフォントを使用するかどうか．
  */
 export const USES_OSS_FONTS = false;
@@ -60,7 +53,14 @@ export const USES_OSS_FONTS = false;
  * カラーで出力するかどうか．
  * false にするとグレースケール（K 5% 刻み）に変換される．
  */
-export const USES_COLOR = false;
+export const USES_COLOR = true;
+
+/**
+ * ノド（内側）と小口（外側）の余白を区別するかどうか．
+ * true のとき，ノドの余白が小口の余白より広くなる．
+ * false のとき，ノドと小口の余白が均等になる．
+ */
+export const USES_ASYMMETRIC_MARGINS = false;
 
 /**
  * PDF メタデータに設定する書籍情報．

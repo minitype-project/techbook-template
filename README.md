@@ -1,14 +1,14 @@
 # techbook-template
 
 組版エンジン [minitype](https://typeset.jp/) を用いて技術同人誌（B5 判，横組み）を制作するためのテンプレートです．
-Markdown + TSX（MDX）を用いて記事を執筆します．
+Markdown + JSX（MDX）を用いて記事を執筆します．
 
 ＜図＞
 
 本テンプレートは，以下の特徴を有します．
 
 - **Markdown + JSX による執筆**<br />
-  本文を Markdown で手軽に記述しつつ．注記，コラム，複雑な表など，Markdown のみでは記述しにくい表現には JSX コンポーネントを利用できます．
+  本文を Markdown で手軽に記述しつつ，注記，コラム，複雑な表等，Markdown のみでは記述しにくい表現には JSX コンポーネントを利用できます．
 - **高品質な日本語組版**<br />
   高度な日本語組版に対応した minitype を使用して，高品質に組版された PDF を生成できます．
 - **複数著者による制作に対応**<br />
@@ -16,7 +16,7 @@ Markdown + TSX（MDX）を用いて記事を執筆します．
 - **快適な執筆環境**<br />
   執筆中の誌面のリアルタイムプレビュー，コードブロックの自動フォーマット，豆腐文字の検出，オープンソースフォントを用いたコンパイル等にも対応しています．
 - **印刷・入稿に便利な機能**<br />
-  印刷用のグレースケール変換，ノド・小口の余白調整，塗り足し付きの扉の生成，PDF の差分検査などが行えます．
+  印刷用のグレースケール変換，ノド・小口の余白調整，塗り足し付きの扉の生成，PDF の差分検査等が行えます．
 - **すぐに利用可能**<br />
   Node.js の環境があればすぐに執筆を開始できます．
 
@@ -43,9 +43,9 @@ npm run dev sample
 自分の記事を執筆するには，`articles/sample/` を `articles/<dirname>/` にコピーして，`index.mdx` を編集してください（詳細は[記事の執筆](#記事の執筆)を参照）．
 
 ```bash
-# 記事を PDF 文書に出力
+# 単体記事をコンパイルして dist/<dirname>.pdf を生成
 npm run build <dirname>
-# 書籍全体を PDF 文書に出力
+# 書籍全体をコンパイルして dist/book-<YYYYMMDD>-<HHMMSS>.pdf を生成
 npm run build
 ```
 
@@ -73,9 +73,9 @@ winget install oschwartz10612.Poppler
 ## 文書のコンパイル
 
 ```bash
-# 記事のリアルタイムプレビューを行う
+# 開発サーバを起動して記事をリアルタイムプレビュー
 npm run dev <dirname>
-# 目次 + 全記事をコンパイルして dist/book-<YYYYMMDD>-<HHMMSS>.pdf を生成
+# 書籍全体をコンパイルして dist/book-<YYYYMMDD>-<HHMMSS>.pdf を生成
 npm run build
 # 単体記事をコンパイルして dist/<dirname>.pdf を生成
 npm run build <dirname>
@@ -93,10 +93,10 @@ npm run build:tobira-padding
 
 ## 記事の執筆
 
-- `articles/` 以下にディレクトリを作成して，その中の `index.mdx` に記事を執筆してください．
+- `articles/` にディレクトリを作成して，その中の `index.mdx` に記事を執筆してください．
   - ブランチを切って，PR として提出されることを推奨します．
 - サンプル記事（`articles/sample`）を書き方の参考にしてください．
-- mdx の先頭に YAML フロントマターとして以下の内容を記述してください．各項目の詳細はサンプル記事を参照してください．
+- MDX の先頭に YAML フロントマターとして以下の内容を記述してください．各項目の詳細はサンプル記事を参照してください．
 
   ```yaml
   ---
@@ -105,8 +105,9 @@ npm run build:tobira-padding
   title-tobira: 扉の\n記事タイトル（任意）
   author: 著者名（必須）
   author-detail: 著者詳細．メールアドレス，所属，SNS アカウント等（任意）
-  author-image: articles/<dirname>/profile.jpg # 著者紹介欄の画像．JPEG または PNG（任意）
-  auto-format: true # コードブロックの自動フォーマットを有効化するかどうか（任意，既定値 true）
+  author-image: profile.jpg # 著者紹介欄の画像のパス．JPEG または PNG（任意）
+  auto-format: true # コードブロックに自動フォーマットを適用するかどうか（任意，既定値：true）
+  heading-top-space: 4 # 記事タイトル上部の余白（mm）．負の値で上に詰める（任意，既定値：4）
   ---
   ```
 
@@ -119,12 +120,13 @@ npm run build:tobira-padding
 
 | 項目 | 説明 |
 | --- | --- |
-| `articleOrder` | 書籍に含める記事のディレクトリ名と掲載順 |
-| `USES_PARTS` | 記事を「〜の部」でグループ化するか |
-| `USES_OSS_FONTS` | 有償フォントの代わりにオープンソースフォントを使用するか |
-| `USES_COLOR` | 文書をカラーで出力するか（false のとき，印刷用にグレースケール（K5% 刻み）で出力 + 画像をグレースケールに変換） |
-| `USES_ASYMMETRIC_MARGINS` | ノドの余白を広く，小口の余白を狭くするかどうか |
-| `bookMetadata` | PDF メタデータに設定する書籍名，発行者名 |
+| `articleOrder` | 書籍に含める記事のディレクトリ名と掲載順． |
+| `partLabels` | 部の名前（`USES_PARTS` が true のときに部扉・目次に表示）．空文字列の部は部扉と目次の部見出しを省略する． |
+| `USES_PARTS` | 記事を「〜の部」でグループ化するかどうか（既定値：false）． |
+| `USES_OSS_FONTS` | プロプライエタリフォントの代わりにオープンソースフォントを使用するかどうか（既定値：true）． |
+| `USES_COLOR` | 文書をカラーで出力するかどうか．false のとき，印刷用にグレースケール（K5% 刻み）で出力するとともに，画像をグレースケールに変換する（既定値：true）． |
+| `USES_ASYMMETRIC_MARGINS` | ノドの余白を広く，小口の余白を狭く設定するかどうか（既定値：false）． |
+| `bookMetadata` | PDF メタデータに設定する書籍名，発行者名． |
 
 ### フォント
 
@@ -147,7 +149,6 @@ npm run build:tobira-padding
 また，以下のコマンドにより，コンパイルされた PDF の差分（ページ数，しおり，抽出されたテキスト，見た目）を検出することができます．
 
 ```bash
-# 2 つの PDF の差分（ページ数，しおり，テキスト，見た目）を検査
 # 引数を省略した場合は dist/book-*.pdf のうち新しい 2 つを比較し，差分画像を dist/diff-<old>-<new>/ に出力
 npm run diff [old.pdf] [new.pdf]
 ```
